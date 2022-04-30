@@ -104,6 +104,8 @@ def get_args_parser():
     parser.add_argument('--bbox_loss_coef', default=5, type=float)
     parser.add_argument('--giou_loss_coef', default=2, type=float)
     parser.add_argument('--focal_alpha', default=0.25, type=float)
+    parser.add_argument('--lambd', default=0.25, type=float)
+
 
     # dataset parameters
     parser.add_argument('--dataset_file', default='coco')

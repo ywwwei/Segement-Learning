@@ -1,0 +1,5 @@
+
+**/figs
+**/output
+*.log
+*.pth
