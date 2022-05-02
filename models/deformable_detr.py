@@ -51,8 +51,8 @@ class DeformableDETR(nn.Module):
         self.num_queries = num_queries
         self.transformer = transformer
         hidden_dim = transformer.d_model
-        self.class_embed = nn.Linear(hidden_dim, num_classes)
-        self.bbox_embed = MLP(hidden_dim, hidden_dim, 4, 3)
+        # self.class_embed = nn.Linear(hidden_dim, num_classes)
+        # self.bbox_embed = MLP(hidden_dim, hidden_dim, 4, 3)
         self.num_feature_levels = num_feature_levels
         if not two_stage:
             self.query_embed = nn.Embedding(num_queries, hidden_dim*2)
@@ -83,11 +83,11 @@ class DeformableDETR(nn.Module):
         self.with_box_refine = with_box_refine
         self.two_stage = two_stage
 
-        prior_prob = 0.01
-        bias_value = -math.log((1 - prior_prob) / prior_prob)
-        self.class_embed.bias.data = torch.ones(num_classes) * bias_value
-        nn.init.constant_(self.bbox_embed.layers[-1].weight.data, 0)
-        nn.init.constant_(self.bbox_embed.layers[-1].bias.data, 0)
+        # prior_prob = 0.01
+        # bias_value = -math.log((1 - prior_prob) / prior_prob)
+        # self.class_embed.bias.data = torch.ones(num_classes) * bias_value
+        # nn.init.constant_(self.bbox_embed.layers[-1].weight.data, 0)
+        # nn.init.constant_(self.bbox_embed.layers[-1].bias.data, 0) # initialize the box and class embed
         for proj in self.input_proj:
             nn.init.xavier_uniform_(proj[0].weight, gain=1)
             nn.init.constant_(proj[0].bias, 0)
@@ -489,6 +489,8 @@ def build(args):
     num_classes = 20 if args.dataset_file != 'coco' else 91
     if args.dataset_file == "coco_panoptic":
         num_classes = 250
+    elif args.dataset_file == 'YoutubeVIS':
+        num_classes = 42
     device = torch.device(args.device)
 
     backbone = build_backbone(args)
@@ -506,31 +508,31 @@ def build(args):
     )
     if args.masks:
         model = DETRsegm(model, freeze_detr=(args.frozen_weights is not None))
-    matcher = build_matcher(args)
-    weight_dict = {'loss_ce': args.cls_loss_coef, 'loss_bbox': args.bbox_loss_coef}
-    weight_dict['loss_giou'] = args.giou_loss_coef
-    if args.masks:
-        weight_dict["loss_mask"] = args.mask_loss_coef
-        weight_dict["loss_dice"] = args.dice_loss_coef
-    # TODO this is a hack
-    if args.aux_loss:
-        aux_weight_dict = {}
-        for i in range(args.dec_layers - 1):
-            aux_weight_dict.update({k + f'_{i}': v for k, v in weight_dict.items()})
-        aux_weight_dict.update({k + f'_enc': v for k, v in weight_dict.items()})
-        weight_dict.update(aux_weight_dict)
+    # matcher = build_matcher(args)
+    # weight_dict = {'loss_ce': args.cls_loss_coef, 'loss_bbox': args.bbox_loss_coef}
+    # weight_dict['loss_giou'] = args.giou_loss_coef
+    # if args.masks:
+    #     weight_dict["loss_mask"] = args.mask_loss_coef
+    #     weight_dict["loss_dice"] = args.dice_loss_coef
+    # # TODO this is a hack
+    # if args.aux_loss:
+    #     aux_weight_dict = {}
+    #     for i in range(args.dec_layers - 1):
+    #         aux_weight_dict.update({k + f'_{i}': v for k, v in weight_dict.items()})
+    #     aux_weight_dict.update({k + f'_enc': v for k, v in weight_dict.items()})
+    #     weight_dict.update(aux_weight_dict)
 
-    losses = ['labels', 'boxes', 'cardinality']
-    if args.masks:
-        losses += ["masks"]
+    # losses = ['labels', 'boxes', 'cardinality']
+    # if args.masks:
+    #     losses += ["masks"]
     # num_classes, matcher, weight_dict, losses, focal_alpha=0.25
-    criterion = SetCriterion(num_classes, matcher, weight_dict, losses, focal_alpha=args.focal_alpha)
+    criterion = ContrastiveCriterion(args.lambd)
     criterion.to(device)
-    postprocessors = {'bbox': PostProcess()}
-    if args.masks:
-        postprocessors['segm'] = PostProcessSegm()
-        if args.dataset_file == "coco_panoptic":
-            is_thing_map = {i: i <= 90 for i in range(201)}
-            postprocessors["panoptic"] = PostProcessPanoptic(is_thing_map, threshold=0.85)
+    # postprocessors = {'bbox': PostProcess()}
+    # if args.masks:
+    #     postprocessors['segm'] = PostProcessSegm()
+    #     if args.dataset_file == "coco_panoptic":
+    #         is_thing_map = {i: i <= 90 for i in range(201)}
+    #         postprocessors["panoptic"] = PostProcessPanoptic(is_thing_map, threshold=0.85)
 
-    return model, criterion, postprocessors
+    return model, criterion#, postprocessors
