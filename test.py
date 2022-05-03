@@ -49,9 +49,14 @@ class ContrastiveCriterion(nn.Module):
  
 if __name__ == '__main__':
     # input
-    outputs = torch.rand(2,3,4,4)
+    z1 = torch.diag(torch.ones(4))
+    z2 = z1
+
+    outputs1 = torch.stack((z1,z2)).reshape(1, 2, 4, 4)
+    outputs2 = torch.rand(2, 4, 4).reshape(1, 2, 4, 4)
+    
     # call function
     criterion = ContrastiveCriterion(lambd = 0.5)
-    print(criterion(outputs))
+    print(criterion(outputs1)) # expect this to have 0 loss
+    print(criterion(outputs2)) # expect this to have higher loss
 
-    # output
