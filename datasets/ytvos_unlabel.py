@@ -92,7 +92,7 @@ class YTVOSDataset:
             if self._transforms is not None:
                 img, _ = self._transforms(img, target=None, num_frames=num_frames)
 
-        return torch.cat(img,dim=0) 
+        return torch.cat(img,dim=0), None
 
 def make_coco_transforms(image_set):
 

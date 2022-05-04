@@ -92,24 +92,24 @@ class DeformableDETR(nn.Module):
             nn.init.xavier_uniform_(proj[0].weight, gain=1)
             nn.init.constant_(proj[0].bias, 0)
 
-        # if two-stage, the last class_embed and bbox_embed is for region proposal generation
-        num_pred = (transformer.decoder.num_layers + 1) if two_stage else transformer.decoder.num_layers
-        if with_box_refine:
-            self.class_embed = _get_clones(self.class_embed, num_pred)
-            self.bbox_embed = _get_clones(self.bbox_embed, num_pred)
-            nn.init.constant_(self.bbox_embed[0].layers[-1].bias.data[2:], -2.0)
-            # hack implementation for iterative bounding box refinement
-            self.transformer.decoder.bbox_embed = self.bbox_embed
-        else:
-            nn.init.constant_(self.bbox_embed.layers[-1].bias.data[2:], -2.0)
-            self.class_embed = nn.ModuleList([self.class_embed for _ in range(num_pred)])
-            self.bbox_embed = nn.ModuleList([self.bbox_embed for _ in range(num_pred)])
-            self.transformer.decoder.bbox_embed = None
-        if two_stage:
-            # hack implementation for two-stage
-            self.transformer.decoder.class_embed = self.class_embed
-            for box_embed in self.bbox_embed:
-                nn.init.constant_(box_embed.layers[-1].bias.data[2:], 0.0)
+        # # if two-stage, the last class_embed and bbox_embed is for region proposal generation
+        # num_pred = (transformer.decoder.num_layers + 1) if two_stage else transformer.decoder.num_layers
+        # if with_box_refine:
+        #     self.class_embed = _get_clones(self.class_embed, num_pred)
+        #     self.bbox_embed = _get_clones(self.bbox_embed, num_pred)
+        #     nn.init.constant_(self.bbox_embed[0].layers[-1].bias.data[2:], -2.0)
+        #     # hack implementation for iterative bounding box refinement
+        #     self.transformer.decoder.bbox_embed = self.bbox_embed
+        # else:
+        #     nn.init.constant_(self.bbox_embed.layers[-1].bias.data[2:], -2.0)
+        #     self.class_embed = nn.ModuleList([self.class_embed for _ in range(num_pred)])
+        #     self.bbox_embed = nn.ModuleList([self.bbox_embed for _ in range(num_pred)])
+        #     self.transformer.decoder.bbox_embed = None
+        # if two_stage:
+        #     # hack implementation for two-stage
+        #     self.transformer.decoder.class_embed = self.class_embed
+        #     for box_embed in self.bbox_embed:
+        #         nn.init.constant_(box_embed.layers[-1].bias.data[2:], 0.0)
 
     def forward(self, samples: NestedTensor):
         """ The forward expects a NestedTensor, which consists of:
@@ -156,35 +156,35 @@ class DeformableDETR(nn.Module):
             query_embeds = self.query_embed.weight
         hs, init_reference, inter_references, enc_outputs_class, enc_outputs_coord_unact = self.transformer(srcs, masks, pos, query_embeds)
 
-        outputs_classes = []
-        outputs_coords = []
-        for lvl in range(hs.shape[0]):
-            if lvl == 0:
-                reference = init_reference
-            else:
-                reference = inter_references[lvl - 1]
-            reference = inverse_sigmoid(reference)
-            outputs_class = self.class_embed[lvl](hs[lvl])
-            tmp = self.bbox_embed[lvl](hs[lvl])
-            if reference.shape[-1] == 4:
-                tmp += reference
-            else:
-                assert reference.shape[-1] == 2
-                tmp[..., :2] += reference
-            outputs_coord = tmp.sigmoid()
-            outputs_classes.append(outputs_class)
-            outputs_coords.append(outputs_coord)
-        outputs_class = torch.stack(outputs_classes)
-        outputs_coord = torch.stack(outputs_coords)
+        # outputs_classes = []
+        # outputs_coords = []
+        # for lvl in range(hs.shape[0]):
+        #     if lvl == 0:
+        #         reference = init_reference
+        #     else:
+        #         reference = inter_references[lvl - 1]
+        #     reference = inverse_sigmoid(reference)
+        #     outputs_class = self.class_embed[lvl](hs[lvl])
+        #     tmp = self.bbox_embed[lvl](hs[lvl])
+        #     if reference.shape[-1] == 4:
+        #         tmp += reference
+        #     else:
+        #         assert reference.shape[-1] == 2
+        #         tmp[..., :2] += reference
+        #     outputs_coord = tmp.sigmoid()
+        #     outputs_classes.append(outputs_class)
+        #     outputs_coords.append(outputs_coord)
+        # outputs_class = torch.stack(outputs_classes)
+        # outputs_coord = torch.stack(outputs_coords)
 
-        out = {'pred_logits': outputs_class[-1], 'pred_boxes': outputs_coord[-1]}
-        if self.aux_loss:
-            out['aux_outputs'] = self._set_aux_loss(outputs_class, outputs_coord)
+        # out = {'pred_logits': outputs_class[-1], 'pred_boxes': outputs_coord[-1]}
+        # if self.aux_loss:
+        #     out['aux_outputs'] = self._set_aux_loss(outputs_class, outputs_coord)
 
-        if self.two_stage:
-            enc_outputs_coord = enc_outputs_coord_unact.sigmoid()
-            out['enc_outputs'] = {'pred_logits': enc_outputs_class, 'pred_boxes': enc_outputs_coord}
-        return out
+        # if self.two_stage:
+        #     enc_outputs_coord = enc_outputs_coord_unact.sigmoid()
+        #     out['enc_outputs'] = {'pred_logits': enc_outputs_class, 'pred_boxes': enc_outputs_coord}
+        return hs[-1]
 
     @torch.jit.unused
     def _set_aux_loss(self, outputs_class, outputs_coord):
@@ -506,8 +506,8 @@ def build(args):
         with_box_refine=args.with_box_refine,
         two_stage=args.two_stage,
     )
-    if args.masks:
-        model = DETRsegm(model, freeze_detr=(args.frozen_weights is not None))
+    # if args.masks:
+    #     model = DETRsegm(model, freeze_detr=(args.frozen_weights is not None))
     # matcher = build_matcher(args)
     # weight_dict = {'loss_ce': args.cls_loss_coef, 'loss_bbox': args.bbox_loss_coef}
     # weight_dict['loss_giou'] = args.giou_loss_coef

@@ -570,9 +570,9 @@ class Compose(object):
     def __init__(self, transforms):
         self.transforms = transforms
 
-    def __call__(self, image, target, now_frames):
+    def __call__(self, image, target, num_frames):
         for t in self.transforms:            
-            image, target = t(image, target, now_frames)
+            image, target = t(image, target, num_frames)
         return image, target
 
     def __repr__(self):
