@@ -4,7 +4,6 @@ from sklearn.manifold import MDS, TSNE
 import matplotlib.pyplot as plt
 from scipy.spatial.distance import squareform, pdist
 import os
-
 def MDS_plot(X, metric,color = True):
     X=X.numpy()
     dim_list=X.shape #B,T,N,d
@@ -13,11 +12,13 @@ def MDS_plot(X, metric,color = True):
     query_num=dim_list[2]
     feature_dim=dim_list[3]
     picture_num=frame_num*batch_size
-    for i in np.arange(query_num):
-        if i==0:
-            X_ordered_list=X[:,:,i,:].reshape(-1, X[:,:,i,:].shape[-1])
-        else:
-            X_ordered_list=np.concatenate((X_ordered_list, X[:,:,i,:].reshape(-1, X[:,:,i,:].shape[-1])), axis=0)
+
+    # for i in np.arange(query_num):
+    #     if i==0:
+    #         X_ordered_list=X[:,:,i,:].reshape(-1, X[:,:,i,:].shape[-1])
+    #     else:
+    #         X_ordered_list=np.concatenate((X_ordered_list, X[:,:,i,:].reshape(-1, X[:,:,i,:].shape[-1])), axis=0)
+    X_ordered_list=np.transpose(X, (2,0,1,3 )).reshape(-1,X.shape[-1])
     embedding = MDS(n_components=2, dissimilarity="precomputed")
     similarities = squareform(pdist(X_ordered_list, metric))
     X_transformed = embedding.fit_transform(similarities)
@@ -26,19 +27,21 @@ def MDS_plot(X, metric,color = True):
     plt.clf()
 
     if color:
-        colors = plt.cm.rainbow(np.linspace(0,1,num=query_num))
-
-        for i in range(query_num):
-            #if magnitude[i]>=0.001*max_magnitude:
-            print(X_transformed[i:i+picture_num, 0])
-            print(colors.shape)
-            plt.scatter(X_transformed[i*picture_num:(i+1)*picture_num, 0], X_transformed[i*picture_num:(i+1)*picture_num, 1], color=colors[i])
+        color_index=np.linspace(0,1,num=query_num)
+        color_index=np.repeat(color_index,picture_num)
+        colors = plt.cm.rainbow(color_index)
+        plt.scatter(X_transformed[:, 0], X_transformed[:, 1], color=colors)
+        # for i in range(query_num):
+        #     #if magnitude[i]>=0.001*max_magnitude:
+        #     print(X_transformed[i:i+picture_num, 0])
+        #     print(colors.shape)
+        #     plt.scatter(X_transformed[i*picture_num:(i+1)*picture_num, 0], X_transformed[i*picture_num:(i+1)*picture_num, 1], color=colors[i])
         #if X_transformed[-1, 0] ** 2 + X_transformed[-1, 1] ** 2 < 10000:
     else:
         plt.scatter(X_transformed[:, 0], X_transformed[:, 1],color="blue")
     #plt.legend()
     dirname=os.path.dirname
-    plt.savefig(os.path.join(dirname(dirname(__file__)), os.path.join("figs", "train_test_acc_change_noise.png")))
+    plt.savefig(os.path.join(dirname(dirname(__file__)), os.path.join("figs", "train_test_acc_change_noise_MDS.png")))
     return
 
 
@@ -50,12 +53,13 @@ def TSNE_plot(X, metric,color = True):
     query_num=dim_list[2]
     feature_dim=dim_list[3]
     picture_num=frame_num*batch_size
-    for i in np.arange(query_num):
-        if i==0:
-            X_ordered_list=X[:,:,i,:].reshape(-1, X[:,:,i,:].shape[-1])
-        else:
-            X_ordered_list=np.concatenate((X_ordered_list, X[:,:,i,:].reshape(-1, X[:,:,i,:].shape[-1])), axis=0)
-    embedding = TSNE(n_components=2,metric="precomputed",square_distances=True)
+    X_ordered_list=np.transpose(X, (2,0,1,3 )).reshape(-1,X.shape[-1])
+    # for i in np.arange(query_num):
+    #     if i==0:
+    #         X_ordered_list=X[:,:,i,:].reshape(-1, X[:,:,i,:].shape[-1])
+    #     else:
+    #         X_ordered_list=np.concatenate((X_ordered_list, X[:,:,i,:].reshape(-1, X[:,:,i,:].shape[-1])), axis=0)
+    embedding = TSNE(n_components=2,metric="precomputed", square_distances=True)
     similarities = squareform(pdist(X_ordered_list, metric))
     X_transformed = embedding.fit_transform(similarities)
     #print(X_transformed)
@@ -63,26 +67,29 @@ def TSNE_plot(X, metric,color = True):
     plt.clf()
 
     if color:
-        colors = plt.cm.rainbow(np.linspace(0,1,num=query_num))
-
-        for i in range(query_num):
-            #if magnitude[i]>=0.001*max_magnitude:
-            print(X_transformed[i:i+picture_num, 0])
-            print(colors.shape)
-            plt.scatter(X_transformed[i*picture_num:(i+1)*picture_num, 0], X_transformed[i*picture_num:(i+1)*picture_num, 1], color=colors[i])
-        #if X_transformed[-1, 0] ** 2 + X_transformed[-1, 1] ** 2 < 10000:
+        color_index=np.linspace(0,1,num=query_num)
+        color_index=np.repeat(color_index,picture_num)
+        colors = plt.cm.rainbow(color_index)
+        #print(X_transformed.shape)
+        plt.scatter(X_transformed[:, 0], X_transformed[:, 1], color=colors)
+        # for i in range(query_num):
+        #     #if magnitude[i]>=0.001*max_magnitude:
+        #     print(X_transformed[i:i+picture_num, 0])
+        #     print(colors.shape)
+        #     plt.scatter(X_transformed[i*picture_num:(i+1)*picture_num, 0], X_transformed[i*picture_num:(i+1)*picture_num, 1], color=colors[i])
+        # #if X_transformed[-1, 0] ** 2 + X_transformed[-1, 1] ** 2 < 10000:
     else:
         plt.scatter(X_transformed[:, 0], X_transformed[:, 1],color="blue")
     #plt.legend()
     dirname=os.path.dirname
-    plt.savefig(os.path.join(dirname(dirname(__file__)), os.path.join("figs", "train_test_acc_change_noise.png")))
+    plt.savefig(os.path.join(dirname(dirname(__file__)), os.path.join("figs", "train_test_acc_change_noise_TSNE.png")))
     return
 
 def test_MDS_plot(metric="cosine", color=True):
     query_num=10
     feature_dim=10
-    batch_size=2
-    frame_num=2
+    batch_size=5
+    frame_num=5
     X=torch.zeros(batch_size,frame_num,query_num,feature_dim)
     for i in range(query_num):
         center=torch.normal(mean=0,std=10,size=(feature_dim,))
@@ -90,5 +97,6 @@ def test_MDS_plot(metric="cosine", color=True):
         center_dup=center.repeat((batch_size,frame_num,1))
         X[:,:,i,:]=center_dup+torch.normal(mean=0,std=0.5,size=X[:,:,i,:].shape)
     MDS_plot(X, metric=metric,color=color)
+    TSNE_plot(X, metric=metric,color=color)
 if __name__ == '__main__':
     test_MDS_plot()
