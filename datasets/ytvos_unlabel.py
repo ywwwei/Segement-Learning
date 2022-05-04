@@ -49,48 +49,46 @@ class YTVOSDataset:
         return len(self.img_ids)
 
     def __getitem__(self, idx):
+       
+        vid,  frame_id = self.img_ids[idx]
+        vid_id = self.vid_infos[vid]['id']
+        img = []
+        vid_len = len(self.vid_infos[vid]['file_names'])
+        inds = list(range(self.num_frames))
+        num_frames = self.num_frames
+        # random sparse sample
+        sample_indx = [frame_id]
+        #local sample
+        samp_id_befor = randint(1,3)
+        samp_id_after = randint(1,3)
+        local_indx = [max(0, frame_id - samp_id_befor), min(vid_len - 1, frame_id + samp_id_after)]
+        sample_indx.extend(local_indx)
 
-        instance_check = False
-        while not instance_check:          
-            vid,  frame_id = self.img_ids[idx]
-            vid_id = self.vid_infos[vid]['id']
-            img = []
-            vid_len = len(self.vid_infos[vid]['file_names'])
-            inds = list(range(self.num_frames))
-            num_frames = self.num_frames
-            # random sparse sample
-            sample_indx = [frame_id]
-            #local sample
-            samp_id_befor = randint(1,3)
-            samp_id_after = randint(1,3)
-            local_indx = [max(0, frame_id - samp_id_befor), min(vid_len - 1, frame_id + samp_id_after)]
-            sample_indx.extend(local_indx)
+        # global sampling
+        if num_frames > 3:
+            all_inds = list(range(vid_len))
+            global_inds = all_inds[:min(sample_indx)]+all_inds[max(sample_indx):]
+            global_n = num_frames - len(sample_indx)
+            if len(global_inds) > global_n:
+                select_id = random.sample(range(len(global_inds)),global_n)
+                for s_id in select_id:
+                    sample_indx.append(global_inds[s_id])
+            elif vid_len >=global_n:  # sample long range global frames
+                select_id = random.sample(range(vid_len),global_n)
+                for s_id in select_id:
+                    sample_indx.append(all_inds[s_id])
+            else:
+                select_id = random.sample(range(vid_len),global_n - vid_len)+list(range(vid_len))           
+                for s_id in select_id:                                                                   
+                    sample_indx.append(all_inds[s_id])
+        sample_indx.sort()
 
-            # global sampling
-            if num_frames > 3:
-                all_inds = list(range(vid_len))
-                global_inds = all_inds[:min(sample_indx)]+all_inds[max(sample_indx):]
-                global_n = num_frames - len(sample_indx)
-                if len(global_inds) > global_n:
-                    select_id = random.sample(range(len(global_inds)),global_n)
-                    for s_id in select_id:
-                        sample_indx.append(global_inds[s_id])
-                elif vid_len >=global_n:  # sample long range global frames
-                    select_id = random.sample(range(vid_len),global_n)
-                    for s_id in select_id:
-                        sample_indx.append(all_inds[s_id])
-                else:
-                    select_id = random.sample(range(vid_len),global_n - vid_len)+list(range(vid_len))           
-                    for s_id in select_id:                                                                   
-                        sample_indx.append(all_inds[s_id])
-            sample_indx.sort()
-    
-            for j in range(self.num_frames):
-                img_path = os.path.join(str(self.img_folder), self.vid_infos[vid]['file_names'][sample_indx[j]])
-                img.append(Image.open(img_path).convert('RGB'))
+        for j in range(self.num_frames):
+            img_path = os.path.join(str(self.img_folder), self.vid_infos[vid]['file_names'][sample_indx[j]])
+            img.append(Image.open(img_path).convert('RGB'))
 
-            if self._transforms is not None:
-                img, _ = self._transforms(img, target=None, num_frames=num_frames)
+        if self._transforms is not None:
+            img, _ = self._transforms(img, target=None, num_frames=num_frames)
 
         return torch.cat(img,dim=0), None
 

@@ -22,7 +22,7 @@ import datasets
 import util.misc as utils
 import datasets.samplers as samplers
 from datasets import build_dataset, get_coco_api_from_dataset
-from engine import MDS_plot
+from util.projection import MDS_plot, TSNE_plot
 from models import build_model
 
 
@@ -76,7 +76,7 @@ def get_args_parser():
                         help="Dropout applied in the transformer")
     parser.add_argument('--nheads', default=8, type=int,
                         help="Number of attention heads inside the transformer's attentions")
-    parser.add_argument('--num_queries', default=30, type=int,
+    parser.add_argument('--num_queries', default=300, type=int,
                         help="Number of query slots")
     parser.add_argument('--dec_n_points', default=4, type=int)
     parser.add_argument('--enc_n_points', default=4, type=int)
@@ -230,10 +230,11 @@ def main(args):
     if args.resume:
         if args.resume.startswith('https'):
             checkpoint = torch.hub.load_state_dict_from_url(
-                args.resume, map_location='cpu', check_hash=True)
+                args.resume, map_location='cpu', check_hash=True)['model']
         else:
-            checkpoint = torch.load(args.resume, map_location='cpu')
-        missing_keys, unexpected_keys = model_without_ddp.load_state_dict(checkpoint['model'], strict=False)
+            checkpoint = torch.load(args.resume, map_location='cpu')['model']
+        # del checkpoint["query_embed.weight"]
+        missing_keys, unexpected_keys = model_without_ddp.load_state_dict(checkpoint, strict=False)
         unexpected_keys = [k for k in unexpected_keys if not (k.endswith('total_params') or k.endswith('total_ops'))]
         if len(missing_keys) > 0:
             print('Missing Keys: {}'.format(missing_keys))
@@ -279,7 +280,10 @@ def main(args):
         samples = samples.to(device)
 
         outputs = model(samples)
-        MDS_plot(outputs, metric='cosine',color=True)
+        #(BT,N,C)->(B,T,N,C)
+        MDS_plot(outputs[None,:], metric='cosine',color=True)
+        TSNE_plot(outputs[None,:], metric='cosine',color=True)
+        break
 
 
     total_time = time.time() - start_time
