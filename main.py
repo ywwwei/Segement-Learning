@@ -12,6 +12,7 @@ import argparse
 import datetime
 import json
 import random
+from this import d
 import time
 from pathlib import Path
 
@@ -25,6 +26,9 @@ from datasets import build_dataset, get_coco_api_from_dataset
 from engine import evaluate, train_one_epoch
 from models import build_model
 
+import os
+import wandb
+
 
 def get_args_parser():
     parser = argparse.ArgumentParser('Deformable DETR Detector', add_help=False)
@@ -33,16 +37,16 @@ def get_args_parser():
     parser.add_argument('--lr_backbone', default=2e-5, type=float)
     parser.add_argument('--lr_linear_proj_names', default=['reference_points', 'sampling_offsets'], type=str, nargs='+')
     parser.add_argument('--lr_linear_proj_mult', default=0.1, type=float)
-    parser.add_argument('--batch_size', default=128, type=int)
+    parser.add_argument('--total_batch_size', default=64, type=int)
     parser.add_argument('--weight_decay', default=1e-4, type=float)
-    parser.add_argument('--epochs', default=50, type=int)
+    parser.add_argument('--epochs', default=3, type=int)
     parser.add_argument('--lr_drop', default=40, type=int)
     parser.add_argument('--lr_drop_epochs', default=None, type=int, nargs='+')
     parser.add_argument('--clip_max_norm', default=0.1, type=float,
                         help='gradient clipping max norm')
 
 
-    parser.add_argument('--sgd', action='store_true')
+    parser.add_argument('--optimizer', default='adamw',choices=('sgd', 'adamw','lars'))
 
     # Variants of Deformable DETR
     parser.add_argument('--with_box_refine', default=False, action='store_true')
@@ -112,6 +116,7 @@ def get_args_parser():
     parser.add_argument('--coco_path', default='./data/coco', type=str)
     parser.add_argument('--coco_panoptic_path', type=str)
     parser.add_argument('--remove_difficult', action='store_true')
+    parser.add_argument('--num_frames', default=2, type=int)
 
     parser.add_argument('--output_dir', default='',
                         help='path where to save, empty for no saving')
@@ -119,11 +124,18 @@ def get_args_parser():
                         help='device to use for training / testing')
     parser.add_argument('--seed', default=42, type=int)
     parser.add_argument('--resume', default='', help='resume from checkpoint')
+    parser.add_argument('--pretrained', default='', help='use pratrained model from checkpoint')
     parser.add_argument('--start_epoch', default=0, type=int, metavar='N',
                         help='start epoch')
     parser.add_argument('--eval', action='store_true')
-    parser.add_argument('--num_workers', default=2, type=int)
+    parser.add_argument('--num_workers', default=0, type=int)
     parser.add_argument('--cache_mode', default=False, action='store_true', help='whether to cache images on memory')
+
+    
+    # distributed training parameters
+    parser.add_argument('--world_size', default=1, type=int,
+                        help='number of distributed processes')
+    parser.add_argument("--local_rank", type=int)
 
     return parser
 
@@ -137,6 +149,9 @@ def main(args):
     print(args)
 
     device = torch.device(args.device)
+    
+    args.batch_size = args.total_batch_size//args.world_size if args.world_size else args.total_batch_size
+    print('batch_size_per_gpu', args.batch_size)
 
     # fix the seed for reproducibility
     seed = args.seed + utils.get_rank()
@@ -152,18 +167,18 @@ def main(args):
     print('number of params:', n_parameters)
 
     dataset_train = build_dataset(image_set='train', args=args)
-    dataset_val = build_dataset(image_set='val', args=args)
+    # dataset_val = build_dataset(image_set='val', args=args)
 
     if args.distributed:
         if args.cache_mode:
             sampler_train = samplers.NodeDistributedSampler(dataset_train)
-            sampler_val = samplers.NodeDistributedSampler(dataset_val, shuffle=False)
+            # sampler_val = samplers.NodeDistributedSampler(dataset_val, shuffle=False)
         else:
             sampler_train = samplers.DistributedSampler(dataset_train)
-            sampler_val = samplers.DistributedSampler(dataset_val, shuffle=False)
+            # sampler_val = samplers.DistributedSampler(dataset_val, shuffle=False)
     else:
         sampler_train = torch.utils.data.RandomSampler(dataset_train)
-        sampler_val = torch.utils.data.SequentialSampler(dataset_val)
+        # sampler_val = torch.utils.data.SequentialSampler(dataset_val)
 
     batch_sampler_train = torch.utils.data.BatchSampler(
         sampler_train, args.batch_size, drop_last=True)
@@ -171,9 +186,9 @@ def main(args):
     data_loader_train = DataLoader(dataset_train, batch_sampler=batch_sampler_train,
                                    collate_fn=utils.collate_fn, num_workers=args.num_workers,
                                    pin_memory=True)
-    data_loader_val = DataLoader(dataset_val, args.batch_size, sampler=sampler_val,
-                                 drop_last=False, collate_fn=utils.collate_fn, num_workers=args.num_workers,
-                                 pin_memory=True)
+    # data_loader_val = DataLoader(dataset_val, args.batch_size, sampler=sampler_val,
+    #                              drop_last=False, collate_fn=utils.collate_fn, num_workers=args.num_workers,
+    #                              pin_memory=True)
 
     # lr_backbone_names = ["backbone.0", "backbone.neck", "input_proj", "transformer.encoder"]
     def match_name_keywords(n, name_keywords):
@@ -184,8 +199,8 @@ def main(args):
                 break
         return out
 
-    for n, p in model_without_ddp.named_parameters():
-        print(n)
+    # for n, p in model_without_ddp.named_parameters():
+    #     print(n)
 
     param_dicts = [
         {
@@ -203,24 +218,29 @@ def main(args):
             "lr": args.lr * args.lr_linear_proj_mult,
         }
     ]
-    if args.sgd:
+    if args.optimizer == 'sgd':
         optimizer = torch.optim.SGD(param_dicts, lr=args.lr, momentum=0.9,
                                     weight_decay=args.weight_decay)
-    else:
+        lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer, args.lr_drop)
+    elif args.optimizer == 'adamw':
         optimizer = torch.optim.AdamW(param_dicts, lr=args.lr,
                                       weight_decay=args.weight_decay)
-    lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer, args.lr_drop)
+        lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer, args.lr_drop)
+    else:
+        optimizer = LARS(param_dicts, lr=0, weight_decay=args.weight_decay,
+                     weight_decay_filter=True,
+                     lars_adaptation_filter=True)
 
     if args.distributed:
         model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[args.gpu])
         model_without_ddp = model.module
 
-    if args.dataset_file == "coco_panoptic":
-        # We also evaluate AP during panoptic training, on original coco DS
-        coco_val = datasets.coco.build("val", args)
-        base_ds = get_coco_api_from_dataset(coco_val)
-    else:
-        base_ds = get_coco_api_from_dataset(dataset_val)
+    # if args.dataset_file == "coco_panoptic":
+    #     # We also evaluate AP during panoptic training, on original coco DS
+    #     coco_val = datasets.coco.build("val", args)
+    #     base_ds = get_coco_api_from_dataset(coco_val)
+    # else:
+    #     base_ds = get_coco_api_from_dataset(dataset_val)
 
     if args.frozen_weights is not None:
         checkpoint = torch.load(args.frozen_weights, map_location='cpu')
@@ -233,6 +253,8 @@ def main(args):
                 args.resume, map_location='cpu', check_hash=True)
         else:
             checkpoint = torch.load(args.resume, map_location='cpu')
+        # if args.num_queries != 300:
+        #     del checkpoint['model']["query_embed.weight"]
         missing_keys, unexpected_keys = model_without_ddp.load_state_dict(checkpoint['model'], strict=False)
         unexpected_keys = [k for k in unexpected_keys if not (k.endswith('total_params') or k.endswith('total_ops'))]
         if len(missing_keys) > 0:
@@ -262,20 +284,27 @@ def main(args):
         #         model, criterion, postprocessors, data_loader_val, base_ds, device, args.output_dir
         #     )
     
+    if args.pretrained:
+        checkpoint = torch.load(args.pretrained, map_location='cpu')['model']
+        if args.num_queries != 300:
+            del checkpoint["query_embed.weight"]
+        missing_keys, unexpected_keys = model_without_ddp.load_state_dict(checkpoint, strict=False)
+
     # if args.eval:
     #     test_stats, coco_evaluator = evaluate(model, criterion, postprocessors,
     #                                           data_loader_val, base_ds, device, args.output_dir)
     #     if args.output_dir:
     #         utils.save_on_master(coco_evaluator.coco_eval["bbox"].eval, output_dir / "eval.pth")
     #     return
-
+    if 'LOCAL_RANK' not in os.environ or int(os.environ['LOCAL_RANK']) == 0:
+        wandb.watch(model,log_freq=10)
     print("Start training")
     start_time = time.time()
     for epoch in range(args.start_epoch, args.epochs):
         if args.distributed:
             sampler_train.set_epoch(epoch)
         train_stats = train_one_epoch(
-            model, criterion, data_loader_train, optimizer, device, epoch, args.clip_max_norm)
+            model, criterion, data_loader_train, optimizer, device, epoch, args)
         lr_scheduler.step()
         if args.output_dir:
             checkpoint_paths = [output_dir / 'checkpoint.pth']
@@ -320,9 +349,68 @@ def main(args):
     print('Training time {}'.format(total_time_str))
 
 
+class LARS(torch.optim.Optimizer):
+    def __init__(self, params, lr, weight_decay=0, momentum=0.9, eta=0.001,
+                 weight_decay_filter=False, lars_adaptation_filter=False):
+        defaults = dict(lr=lr, weight_decay=weight_decay, momentum=momentum,
+                        eta=eta, weight_decay_filter=weight_decay_filter,
+                        lars_adaptation_filter=lars_adaptation_filter)
+        super().__init__(params, defaults)
+
+
+    def exclude_bias_and_norm(self, p):
+        return p.ndim == 1
+
+    @torch.no_grad()
+    def step(self):
+        for g in self.param_groups:
+            for p in g['params']:
+                dp = p.grad
+
+                if dp is None:
+                    continue
+
+                if not g['weight_decay_filter'] or not self.exclude_bias_and_norm(p):
+                    dp = dp.add(p, alpha=g['weight_decay'])
+
+                if not g['lars_adaptation_filter'] or not self.exclude_bias_and_norm(p):
+                    param_norm = torch.norm(p)
+                    update_norm = torch.norm(dp)
+                    one = torch.ones_like(param_norm)
+                    q = torch.where(param_norm > 0.,
+                                    torch.where(update_norm > 0,
+                                                (g['eta'] * param_norm / update_norm), one), one)
+                    dp = dp.mul(q)
+
+                param_state = self.state[p]
+                if 'mu' not in param_state:
+                    param_state['mu'] = torch.zeros_like(p)
+                mu = param_state['mu']
+                mu.mul_(g['momentum']).add_(dp)
+
+                p.add_(mu, alpha=-g['lr'])
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser('Segment learning training and evaluation script', parents=[get_args_parser()])
     args = parser.parse_args()
     if args.output_dir:
         Path(args.output_dir).mkdir(parents=True, exist_ok=True)
+
+    if 'LOCAL_RANK' not in os.environ or int(os.environ['LOCAL_RANK']) == 0:
+        wandb.init(
+            project='segment-learning',
+            entity="segment-learning",
+            name=f'{args.dataset_file}_{args.num_frames}T_{args.total_batch_size}B_{args.num_queries}Q',
+            config={'learning_rate:':args.lr,
+                    'lr_backbone':args.lr_backbone,
+                    'batch_size':args.total_batch_size,
+                    'epochs':args.epochs,
+                    'backbone':args.backbone,
+                    'num_frames':args.num_frames,
+                    'dataset':args.dataset_file,
+                    'num_queries':args.num_queries,
+                    'lambda':args.lambd
+            },
+            dir='/workspace2/jitianzhao/misc/cs839_project/Exp/wandb')
+    
     main(args)

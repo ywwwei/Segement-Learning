@@ -8,6 +8,9 @@ import torch
 
 def to_cuda(samples, targets, device):
     samples = samples.to(device, non_blocking=True)
+    #TODO: unsupervised learning targets [None, None, None, None, None]
+    if targets[0] is None:
+        return  samples, None
     targets = [{k: v.to(device, non_blocking=True) for k, v in t.items()} for t in targets]
     return samples, targets
 

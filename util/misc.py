@@ -163,7 +163,16 @@ def all_gather(data):
 
     return data_list
 
-
+def reduce_value(input_value, average=True):
+    world_size = get_world_size()
+    if world_size < 2:
+        return input_value
+    with torch.no_grad():
+        dist.all_reduce(input_value)
+        if average:
+            input_value /= world_size
+    return input_value
+    
 def reduce_dict(input_dict, average=True):
     """
     Args:

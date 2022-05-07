@@ -109,13 +109,13 @@ def make_coco_transforms(image_set):
             T.RandomSelect(
                 T.Compose([
                     T.RandomResize(scales, max_size=512),
-                    T.Check(),
+                    # T.Check(),#check if box or mask still exist after transforms
                 ]),
                 T.Compose([
                     T.RandomResize([300, 400, 500]),
-                    T.RandomSizeCrop(384, 600),
+                    T.RandomSizeCrop(224, 600),
                     T.RandomResize(scales, max_size=512),
-                    T.Check(),
+                    # T.Check(),
                 ])
             ),
             normalize,

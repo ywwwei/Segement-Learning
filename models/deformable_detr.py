@@ -12,7 +12,7 @@ Deformable DETR model and criterion classes.
 """
 import torch
 import torch.nn.functional as F
-from torch import nn
+from torch import nn, optim
 import math
 
 from util import box_ops
@@ -483,7 +483,6 @@ class MLP(nn.Module):
         for i, layer in enumerate(self.layers):
             x = F.relu(layer(x)) if i < self.num_layers - 1 else layer(x)
         return x
-
 
 def build(args):
     num_classes = 20 if args.dataset_file != 'coco' else 91

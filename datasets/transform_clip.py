@@ -22,7 +22,7 @@ import cv2
 class Check(object):
     def __init__(self,):
         pass
-    def __call__(self,  img, target, now_frames):
+    def __call__(self,  img, target, num_frames):
         fields = ["labels"]  #, "area", "iscrowd"]
         if "boxes" in target:
             fields.append("boxes")
@@ -37,7 +37,7 @@ class Check(object):
             else:
                 keep = target['masks'].flatten(1).any(1)
 
-            num_frames = now_frames
+            num_frames = num_frames
         
             class_keep = []
             if False in keep:
@@ -260,7 +260,7 @@ class RandomSizeCrop(object):
         self.min_size = min_size
         self.max_size = max_size
 
-    def __call__(self, img: PIL.Image.Image, target: dict, now_frames):
+    def __call__(self, img: PIL.Image.Image, target: dict, num_frames):
         w = random.randint(self.min_size, min(img[0].width, self.max_size))
         h = random.randint(self.min_size, min(img[0].height, self.max_size))
         region = T.RandomCrop.get_params(img[0], [h, w])
@@ -341,7 +341,7 @@ class RandomContrast(object):
         self.upper = upper
         assert self.upper >= self.lower, "contrast upper must be >= lower."
         assert self.lower >= 0, "contrast lower must be non-negative."
-    def __call__(self, image, target, now_frames):
+    def __call__(self, image, target, num_frames):
         
         if rand.randint(2):
             alpha = rand.uniform(self.lower, self.upper)
@@ -366,7 +366,7 @@ class RandomSaturation(object):
         assert self.upper >= self.lower, "contrast upper must be >= lower."
         assert self.lower >= 0, "contrast lower must be non-negative."
 
-    def __call__(self, image, target, now_frames):
+    def __call__(self, image, target, num_frames):
         if rand.randint(2):
             image[:, :, 1] *= rand.uniform(self.lower, self.upper)
         return image, target
@@ -376,7 +376,7 @@ class RandomHue(object): #
         assert delta >= 0.0 and delta <= 360.0
         self.delta = delta
 
-    def __call__(self, image, target, now_frames):
+    def __call__(self, image, target, num_frames):
         if rand.randint(2):
             image[:, :, 0] += rand.uniform(-self.delta, self.delta)
             image[:, :, 0][image[:, :, 0] > 360.0] -= 360.0
@@ -400,7 +400,7 @@ class ConvertColor(object):
         self.transform = transform
         self.current = current
 
-    def __call__(self, image, target, now_frames):
+    def __call__(self, image, target, num_frames):
         if self.current == 'BGR' and self.transform == 'HSV':
             image = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
         elif self.current == 'HSV' and self.transform == 'BGR':
@@ -429,7 +429,7 @@ class PhotometricDistort(object):
         self.rand_brightness = RandomBrightness()
         self.rand_light_noise = RandomLightingNoise()
     
-    def __call__(self,clip,target,now_frames):
+    def __call__(self,clip,target,num_frames):
         imgs = []
         for img in clip:
             img = np.asarray(img).astype('float32')
@@ -438,7 +438,7 @@ class PhotometricDistort(object):
                 distort = Compose(self.pd[:-1])
             else:
                 distort = Compose(self.pd[1:])
-            img, target = distort(img, target, now_frames)
+            img, target = distort(img, target, num_frames)
             img, target = self.rand_light_noise(img, target)
             imgs.append(Image.fromarray(img.astype('uint8')))
         return imgs, target
@@ -477,7 +477,7 @@ class RandomHorizontalFlip(object):
     def __init__(self, p=0.5):
         self.p = p
 
-    def __call__(self, img, target, now_frames):
+    def __call__(self, img, target, num_frames):
         if random.random() < self.p:
             return hflip(img, target)
         return img, target
@@ -498,7 +498,7 @@ class RandomResize(object):
         self.sizes = sizes
         self.max_size = max_size
 
-    def __call__(self, img, target=None, now_frames=None):
+    def __call__(self, img, target=None, num_frames=None):
         size = random.choice(self.sizes)
         return resize(img, target, size, self.max_size)
 
@@ -522,14 +522,14 @@ class RandomSelect(object):
         self.transforms2 = transforms2
         self.p = p
 
-    def __call__(self, img, target, now_frames):
+    def __call__(self, img, target, num_frames):
         if random.random() < self.p:
-            return self.transforms1(img, target, now_frames)
-        return self.transforms2(img, target, now_frames)
+            return self.transforms1(img, target, num_frames)
+        return self.transforms2(img, target, num_frames)
 
 
 class ToTensor(object):
-    def __call__(self, clip, target, now_frames):
+    def __call__(self, clip, target, num_frames):
         img = []
         for im in clip:
             img.append(F.to_tensor(im))
@@ -550,7 +550,7 @@ class Normalize(object):
         self.mean = mean
         self.std = std
 
-    def __call__(self, clip, target=None, now_frames=None):
+    def __call__(self, clip, target=None, num_frames=None):
         image = []
         for im in clip:
             image.append(F.normalize(im, mean=self.mean, std=self.std))

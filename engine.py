@@ -10,6 +10,7 @@
 """
 Train and eval functions used in main.py
 """
+import argparse
 import math
 import os
 import sys
@@ -20,16 +21,19 @@ import util.misc as utils
 from datasets.coco_eval import CocoEvaluator
 from datasets.panoptic_eval import PanopticEvaluator
 from datasets.data_prefetcher import data_prefetcher
-import torch.distributed as dist
+
+import wandb
+from util.projection import MDS_plot, TSNE_plot
 
 def train_one_epoch(model: torch.nn.Module, criterion: torch.nn.Module,
                     data_loader: Iterable, optimizer: torch.optim.Optimizer,
-                    device: torch.device, epoch: int, max_norm: float = 0):
+                    device: torch.device, epoch: int, args:argparse.Namespace):
+    max_norm = args.clip_max_norm
     model.train()
     criterion.train()
     metric_logger = utils.MetricLogger(delimiter="  ")
     metric_logger.add_meter('lr', utils.SmoothedValue(window_size=1, fmt='{value:.6f}'))
-    metric_logger.add_meter('class_error', utils.SmoothedValue(window_size=1, fmt='{value:.2f}'))
+    # metric_logger.add_meter('class_error', utils.SmoothedValue(window_size=1, fmt='{value:.2f}'))
     metric_logger.add_meter('grad_norm', utils.SmoothedValue(window_size=1, fmt='{value:.2f}'))
     header = 'Epoch: [{}]'.format(epoch)
     print_freq = 10
@@ -38,12 +42,13 @@ def train_one_epoch(model: torch.nn.Module, criterion: torch.nn.Module,
     samples, _ = prefetcher.next()
 
     # for samples, targets in metric_logger.log_every(data_loader, print_freq, header):
-    for _ in metric_logger.log_every(range(len(data_loader)), print_freq, header):
-        outputs = model(samples)
+    for b,_ in enumerate(metric_logger.log_every(range(len(data_loader)), print_freq, header)):
+        outputs = model(samples) #(BT,N,C)
+        outputs = outputs.reshape((args.batch_size, args.num_frames, args.num_queries,-1)) #(B,T,N,C)
+    
         loss_value = criterion(outputs)
 
-        with torch.no_grad():
-            dist.all_reduce(loss_value)
+        utils.reduce_value(loss_value)
         # weight_dict = criterion.weight_dict
         # losses = sum(loss_dict[k] * weight_dict[k] for k in loss_dict.keys() if k in weight_dict)
 
@@ -76,7 +81,15 @@ def train_one_epoch(model: torch.nn.Module, criterion: torch.nn.Module,
         # metric_logger.update(class_error=loss_dict_reduced['class_error'])
         metric_logger.update(lr=optimizer.param_groups[0]["lr"])
         metric_logger.update(grad_norm=grad_total_norm)
+        if 'LOCAL_RANK' not in os.environ or int(os.environ['LOCAL_RANK']) == 0:
+            step = len(data_loader)*epoch+b
+            wandb.log({"train/loss_value":loss_value}, commit=False)
+            wandb.log({'epoch':epoch},step=step)
 
+            if step==0 or ((step+1) <=500 and (step+1)%200 == 0) or ((step+1) >500 and (step+1)%2000 == 0):
+                MDS_plot(outputs, metric='cosine',color=True, title=f'{args.lambd}l_{args.num_queries}Q_iter{step+1}')
+                TSNE_plot(outputs, metric='cosine',color=True, title=f'{args.lambd}l_{args.num_queries}Q_iter{step+1}')
+            
         samples, _ = prefetcher.next()
     # gather the stats from all processes
     metric_logger.synchronize_between_processes()

@@ -18,3 +18,4 @@ not_tracked_dir/
 *.json
 test.py
 models/ops/*
+figs/

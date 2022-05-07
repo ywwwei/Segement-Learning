@@ -4,7 +4,7 @@ from sklearn.manifold import MDS, TSNE
 import matplotlib.pyplot as plt
 from scipy.spatial.distance import squareform, pdist
 import os
-def MDS_plot(X, metric,color = True):
+def MDS_plot(X, metric,color = True, title=''):
     X=X.cpu().detach().numpy()
     dim_list=X.shape #B,T,N,d
     batch_size=dim_list[0]
@@ -24,6 +24,7 @@ def MDS_plot(X, metric,color = True):
     X_transformed = embedding.fit_transform(similarities)
     #print(X_transformed)
     #torch.save( + "pt")
+    plt.title(title)
     plt.clf()
 
     if color:
@@ -41,11 +42,11 @@ def MDS_plot(X, metric,color = True):
         plt.scatter(X_transformed[:, 0], X_transformed[:, 1],color="blue")
     #plt.legend()
     dirname=os.path.dirname
-    plt.savefig(os.path.join(dirname(dirname(__file__)), os.path.join("figs", "train_test_acc_change_noise_MDS.png")))
+    plt.savefig(os.path.join(dirname(dirname(__file__)), os.path.join("figs", f"{title}_MDS.png")))
     return
 
 
-def TSNE_plot(X, metric,color = True):
+def TSNE_plot(X, metric,color = True, title=''):
     X=X.cpu().detach().numpy()
     dim_list=X.shape #B,T,N,d
     batch_size=dim_list[0]
@@ -64,6 +65,7 @@ def TSNE_plot(X, metric,color = True):
     X_transformed = embedding.fit_transform(similarities)
     #print(X_transformed)
     #torch.save( + "pt")
+    plt.title(title)
     plt.clf()
 
     if color:
@@ -82,7 +84,7 @@ def TSNE_plot(X, metric,color = True):
         plt.scatter(X_transformed[:, 0], X_transformed[:, 1],color="blue")
     #plt.legend()
     dirname=os.path.dirname
-    plt.savefig(os.path.join(dirname(dirname(__file__)), os.path.join("figs", "train_test_acc_change_noise_TSNE.png")))
+    plt.savefig(os.path.join(dirname(dirname(__file__)), os.path.join("figs", f"{title}_TSNE.png")))
     return
 
 def test_MDS_plot(metric="cosine", color=True):

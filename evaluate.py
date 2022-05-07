@@ -9,6 +9,7 @@
 
 
 import argparse
+from ast import Name
 import datetime
 import json
 import random
@@ -76,7 +77,7 @@ def get_args_parser():
                         help="Dropout applied in the transformer")
     parser.add_argument('--nheads', default=8, type=int,
                         help="Number of attention heads inside the transformer's attentions")
-    parser.add_argument('--num_queries', default=300, type=int,
+    parser.add_argument('--num_queries', default=50, type=int,
                         help="Number of query slots")
     parser.add_argument('--dec_n_points', default=4, type=int)
     parser.add_argument('--enc_n_points', default=4, type=int)
@@ -112,14 +113,15 @@ def get_args_parser():
     parser.add_argument('--coco_path', default='./data/coco', type=str)
     parser.add_argument('--coco_panoptic_path', type=str)
     parser.add_argument('--remove_difficult', action='store_true')
-    parser.add_argument('--num_frames', default=10, type=int)
+    parser.add_argument('--num_frames', default=20, type=int)
 
-    parser.add_argument('--output_dir', default='/srv/home/jwei53/Exp',
+    parser.add_argument('--output_dir', default='',
                         help='path where to save, empty for no saving')
     parser.add_argument('--device', default='cuda',
                         help='device to use for training / testing')
     parser.add_argument('--seed', default=42, type=int)
     parser.add_argument('--resume', default='', help='resume from checkpoint')
+    parser.add_argument('--pretrained_coco', default='')
     parser.add_argument('--start_epoch', default=0, type=int, metavar='N',
                         help='start epoch')
     parser.add_argument('--eval', action='store_true')
@@ -226,14 +228,24 @@ def main(args):
         checkpoint = torch.load(args.frozen_weights, map_location='cpu')
         model_without_ddp.detr.load_state_dict(checkpoint['model'])
 
-    output_dir = Path(args.output_dir)
+    # output_dir = Path(args.output_dir)
+    if args.pretrained_coco:
+        checkpoint = torch.load(args.resume, map_location='cpu')['model']
+        if args.num_queries != 300:
+            del checkpoint["query_embed.weight"]
+        missing_keys, unexpected_keys = model_without_ddp.load_state_dict(checkpoint, strict=False)
+        unexpected_keys = [k for k in unexpected_keys if not (k.endswith('total_params') or k.endswith('total_ops'))]
+        if len(missing_keys) > 0:
+            print('Missing Keys: {}'.format(missing_keys))
+        if len(unexpected_keys) > 0:
+            print('Unexpected Keys: {}'.format(unexpected_keys))
+
     if args.resume:
         if args.resume.startswith('https'):
             checkpoint = torch.hub.load_state_dict_from_url(
                 args.resume, map_location='cpu', check_hash=True)['model']
         else:
             checkpoint = torch.load(args.resume, map_location='cpu')['model']
-        # del checkpoint["query_embed.weight"]
         missing_keys, unexpected_keys = model_without_ddp.load_state_dict(checkpoint, strict=False)
         unexpected_keys = [k for k in unexpected_keys if not (k.endswith('total_params') or k.endswith('total_ops'))]
         if len(missing_keys) > 0:
@@ -276,13 +288,17 @@ def main(args):
     model.eval()
     criterion.eval()
 
+    name = args.resume[-9:-4] if args.resume else 'before'
+
     for samples, _ in data_loader_val:
         samples = samples.to(device)
 
-        outputs = model(samples)
-        #(BT,N,C)->(B,T,N,C)
-        MDS_plot(outputs[None,:], metric='cosine',color=True)
-        TSNE_plot(outputs[None,:], metric='cosine',color=True)
+        outputs = model(samples) #(BT,N,C)
+        outputs = outputs.reshape((args.batch_size, args.num_frames, args.num_queries,-1)) #(B,T,N,C)
+        print('shape',outputs.shape)
+    
+        MDS_plot(outputs, metric='cosine',color=True, title=f'{args.num_queries}Q_Epoch_{name}')
+        TSNE_plot(outputs, metric='cosine',color=True, title=f'{args.num_queries}Q_Epoch_{name}')
         break
 
 
@@ -294,6 +310,6 @@ def main(args):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser('Segment learning evaluation script', parents=[get_args_parser()])
     args = parser.parse_args()
-    if args.output_dir:
-        Path(args.output_dir).mkdir(parents=True, exist_ok=True)
+    # if args.output_dir:
+    #     Path(args.output_dir).mkdir(parents=True, exist_ok=True)
     main(args)
