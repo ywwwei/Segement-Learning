@@ -4,6 +4,22 @@ from sklearn.manifold import MDS, TSNE
 import matplotlib.pyplot as plt
 from scipy.spatial.distance import squareform, pdist
 import os
+def mscatter(x,y,ax=None, m=None, **kw):
+    import matplotlib.markers as mmarkers
+    if not ax: ax=plt.gca()
+    sc = ax.scatter(x,y,**kw)
+    if (m is not None) and (len(m)==len(x)):
+        paths = []
+        for marker in m:
+            if isinstance(marker, mmarkers.MarkerStyle):
+                marker_obj = marker
+            else:
+                marker_obj = mmarkers.MarkerStyle(marker)
+            path = marker_obj.get_path().transformed(
+                marker_obj.get_transform())
+            paths.append(path)
+        sc.set_paths(paths)
+    return sc
 def MDS_plot(X, metric,color = True, title=''):
     X=X.cpu().detach().numpy()
     dim_list=X.shape #B,T,N,d
@@ -24,14 +40,21 @@ def MDS_plot(X, metric,color = True, title=''):
     X_transformed = embedding.fit_transform(similarities)
     #print(X_transformed)
     #torch.save( + "pt")
-    plt.title(title)
     plt.clf()
 
     if color:
         color_index=np.linspace(0,1,num=query_num)
         color_index=np.repeat(color_index,picture_num)
         colors = plt.cm.rainbow(color_index)
-        plt.scatter(X_transformed[:, 0], X_transformed[:, 1], color=colors)
+        shape_index=np.array([['s','o','*','D','<']])
+        shape_index=np.repeat(shape_index, query_num//5,axis=0)
+        #shape_index=shape_index.transpose()
+        #print(shape_index)
+        shape_index=shape_index.flatten()
+        shape_index=np.repeat(shape_index, picture_num)
+        #print(shape_index)
+        #plt.scatter(X_transformed[:, 0], X_transformed[:, 1], color=colors)
+        scatter = mscatter(X_transformed[:, 0], X_transformed[:, 1], c=colors,  m=shape_index)
         # for i in range(query_num):
         #     #if magnitude[i]>=0.001*max_magnitude:
         #     print(X_transformed[i:i+picture_num, 0])
@@ -41,8 +64,8 @@ def MDS_plot(X, metric,color = True, title=''):
     else:
         plt.scatter(X_transformed[:, 0], X_transformed[:, 1],color="blue")
     #plt.legend()
-    dirname=os.path.dirname
-    plt.savefig(os.path.join(dirname(dirname(__file__)), os.path.join("figs", f"{title}_MDS.png")))
+    # plt.title(title)
+    plt.savefig(os.path.join("figs", f"{title}_MDS.png"))
     return
 
 
@@ -65,15 +88,22 @@ def TSNE_plot(X, metric,color = True, title=''):
     X_transformed = embedding.fit_transform(similarities)
     #print(X_transformed)
     #torch.save( + "pt")
-    plt.title(title)
     plt.clf()
 
     if color:
         color_index=np.linspace(0,1,num=query_num)
         color_index=np.repeat(color_index,picture_num)
+        shape_index=np.array([['s','o','*','D','<']])
+        shape_index=np.repeat(shape_index, query_num//5,axis=0)
+        #shape_index=shape_index.transpose()
+        #print(shape_index)
+        shape_index=shape_index.flatten()
+        shape_index=np.repeat(shape_index, picture_num)
+        #print(shape_index)
         colors = plt.cm.rainbow(color_index)
-        #print(X_transformed.shape)
-        plt.scatter(X_transformed[:, 0], X_transformed[:, 1], color=colors)
+        #print(color_index.shape)
+        #plt.scatter(X_transformed[:, 0], X_transformed[:, 1], color=colors,marker=shape_index)
+        scatter = mscatter(X_transformed[:, 0], X_transformed[:, 1], c=colors,  m=shape_index)
         # for i in range(query_num):
         #     #if magnitude[i]>=0.001*max_magnitude:
         #     print(X_transformed[i:i+picture_num, 0])
@@ -84,7 +114,8 @@ def TSNE_plot(X, metric,color = True, title=''):
         plt.scatter(X_transformed[:, 0], X_transformed[:, 1],color="blue")
     #plt.legend()
     dirname=os.path.dirname
-    plt.savefig(os.path.join(dirname(dirname(__file__)), os.path.join("figs", f"{title}_TSNE.png")))
+    # plt.title(title)
+    plt.savefig(os.path.join("figs", f"{title}_TSNE.png"))
     return
 
 def test_MDS_plot(metric="cosine", color=True):

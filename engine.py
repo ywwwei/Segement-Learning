@@ -86,9 +86,9 @@ def train_one_epoch(model: torch.nn.Module, criterion: torch.nn.Module,
             wandb.log({"train/loss_value":loss_value}, commit=False)
             wandb.log({'epoch':epoch},step=step)
 
-            if step==0 or ((step+1) <=500 and (step+1)%200 == 0) or ((step+1) >500 and (step+1)%2000 == 0):
-                MDS_plot(outputs, metric='cosine',color=True, title=f'{args.lambd}l_{args.num_queries}Q_iter{step+1}')
-                TSNE_plot(outputs, metric='cosine',color=True, title=f'{args.lambd}l_{args.num_queries}Q_iter{step+1}')
+            # if step==0 or ((step+1) <=500 and (step+1)%200 == 0) or ((step+1) >500 and (step+1)%2000 == 0):
+            #     MDS_plot(outputs, metric='cosine',color=True, title=f'{args.lambd}l_{args.num_queries}Q_iter{step+1}')
+            #     TSNE_plot(outputs, metric='cosine',color=True, title=f'{args.lambd}l_{args.num_queries}Q_iter{step+1}')
             
         samples, _ = prefetcher.next()
     # gather the stats from all processes

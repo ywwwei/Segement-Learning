@@ -13,6 +13,7 @@ from ast import Name
 import datetime
 import json
 import random
+from tabnanny import check
 import time
 from pathlib import Path
 
@@ -230,9 +231,8 @@ def main(args):
 
     # output_dir = Path(args.output_dir)
     if args.pretrained_coco:
-        checkpoint = torch.load(args.resume, map_location='cpu')['model']
-        if args.num_queries != 300:
-            del checkpoint["query_embed.weight"]
+        checkpoint = torch.load(args.pretrained_coco, map_location='cpu')['model']
+        del checkpoint["query_embed.weight"]
         missing_keys, unexpected_keys = model_without_ddp.load_state_dict(checkpoint, strict=False)
         unexpected_keys = [k for k in unexpected_keys if not (k.endswith('total_params') or k.endswith('total_ops'))]
         if len(missing_keys) > 0:
@@ -288,17 +288,17 @@ def main(args):
     model.eval()
     criterion.eval()
 
-    name = args.resume[-9:-4] if args.resume else 'before'
+    name = args.resume[-9:-4] if args.resume else 'before_ft'
 
     for samples, _ in data_loader_val:
         samples = samples.to(device)
 
-        outputs = model(samples) #(BT,N,C)
+        outputs = model(samples) #(BT,N,C)x
         outputs = outputs.reshape((args.batch_size, args.num_frames, args.num_queries,-1)) #(B,T,N,C)
         print('shape',outputs.shape)
     
-        MDS_plot(outputs, metric='cosine',color=True, title=f'{args.num_queries}Q_Epoch_{name}')
-        TSNE_plot(outputs, metric='cosine',color=True, title=f'{args.num_queries}Q_Epoch_{name}')
+        MDS_plot(outputs, metric='cosine',color=True, title=f'{args.num_queries}Q_{args.batch_size}B_{args.num_frames}T_{name}')
+        TSNE_plot(outputs, metric='cosine',color=True, title=f'{args.num_queries}Q_{args.batch_size}B_{args.num_frames}T_{name}')
         break
 
 

@@ -37,7 +37,7 @@ def get_args_parser():
     parser.add_argument('--lr_backbone', default=2e-5, type=float)
     parser.add_argument('--lr_linear_proj_names', default=['reference_points', 'sampling_offsets'], type=str, nargs='+')
     parser.add_argument('--lr_linear_proj_mult', default=0.1, type=float)
-    parser.add_argument('--total_batch_size', default=64, type=int)
+    parser.add_argument('--total_batch_size', default=40, type=int)
     parser.add_argument('--weight_decay', default=1e-4, type=float)
     parser.add_argument('--epochs', default=3, type=int)
     parser.add_argument('--lr_drop', default=40, type=int)
@@ -296,8 +296,8 @@ def main(args):
     #     if args.output_dir:
     #         utils.save_on_master(coco_evaluator.coco_eval["bbox"].eval, output_dir / "eval.pth")
     #     return
-    if 'LOCAL_RANK' not in os.environ or int(os.environ['LOCAL_RANK']) == 0:
-        wandb.watch(model,log_freq=10)
+    # if 'LOCAL_RANK' not in os.environ or int(os.environ['LOCAL_RANK']) == 0:
+    #     wandb.watch(model,log_freq=10)
     print("Start training")
     start_time = time.time()
     for epoch in range(args.start_epoch, args.epochs):
@@ -307,10 +307,10 @@ def main(args):
             model, criterion, data_loader_train, optimizer, device, epoch, args)
         lr_scheduler.step()
         if args.output_dir:
-            checkpoint_paths = [output_dir / 'checkpoint.pth']
+            checkpoint_paths = [output_dir / f'l{args.lambd}_checkpoint.pth']
             # extra checkpoint before LR drop and every 5 epochs
             if (epoch + 1) % args.lr_drop == 0 or (epoch + 1) % 5 == 0:
-                checkpoint_paths.append(output_dir / f'checkpoint{epoch:04}.pth')
+                checkpoint_paths.append(output_dir / f'l{args.lambd}_checkpoint{epoch:04}.pth')
             for checkpoint_path in checkpoint_paths:
                 utils.save_on_master({
                     'model': model_without_ddp.state_dict(),
