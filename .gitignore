@@ -4,3 +4,4 @@
 *.log
 *.pth
 **/venv
+*.png

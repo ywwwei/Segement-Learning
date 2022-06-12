@@ -1,9 +1,23 @@
+import argparse
+from models import build_model
 import numpy as np
 import torch
 from sklearn.manifold import MDS, TSNE
 import matplotlib.pyplot as plt
 from scipy.spatial.distance import squareform, pdist
 import os
+import math
+
+from PIL import Image
+import requests
+import matplotlib.pyplot as plt
+from IPython.display import display, clear_output
+from main import get_args_parser
+import torch
+from torch import nn
+from torchvision.models import resnet50
+import torchvision.transforms as T
+torch.set_grad_enabled(False);
 def mscatter(x,y,ax=None, m=None, **kw):
     import matplotlib.markers as mmarkers
     if not ax: ax=plt.gca()
@@ -130,5 +144,120 @@ def test_MDS_plot(metric="cosine", color=True):
         X[:,:,i,:]=center_dup+torch.normal(mean=0,std=0.5,size=X[:,:,i,:].shape)
     MDS_plot(X, metric=metric,color=color)
     TSNE_plot(X, metric=metric,color=color)
+
+
+    # convert boxes from [0; 1] to image scales
+
+def get_image_attention_output(im,img,model):
+    conv_features, enc_attn_weights, dec_attn_weights = [], [], []
+
+    hooks = [
+        model.backbone[-2].register_forward_hook(
+            lambda self, input, output: conv_features.append(output)
+        ),
+        model.transformer.encoder.layers[-1].self_attn.register_forward_hook(
+            lambda self, input, output: enc_attn_weights.append(output[1])
+        ),
+        model.transformer.decoder.layers[-1].multihead_attn.register_forward_hook(
+            lambda self, input, output: dec_attn_weights.append(output[1])
+        ),
+    ]
+
+    # propagate through the model
+    outputs = model(img)
+
+    for hook in hooks:
+        hook.remove()
+
+    # don't need the list anymore
+    conv_features = conv_features[0]
+    enc_attn_weights = enc_attn_weights[0]
+    dec_attn_weights = dec_attn_weights[0]
+    return  conv_features, enc_attn_weights,dec_attn_weights
+def visualize_dec_atten_weights(im,img, conv_features, dec_attn_weights, query_num):
+    # get the feature map shape
+    h, w = conv_features['0'].tensors.shape[-2:]
+    COLORS = [[0.000, 0.447, 0.741], [0.850, 0.325, 0.098], [0.929, 0.694, 0.125],
+              [0.494, 0.184, 0.556], [0.466, 0.674, 0.188], [0.301, 0.745, 0.933]]
+    fig, axs = plt.subplots(ncols=5, nrows=2, figsize=(22, 7))
+    colors = COLORS * 100
+    for idx, ax_i in zip(np.arange(query_num),axs.T):
+        ax = ax_i[0]
+        ax.imshow(dec_attn_weights[0, idx].view(h, w))
+        ax.axis('off')
+        ax.set_title(f'query id: {idx.item()}')
+        ax = ax_i[1]
+        ax.imshow(im)
+        ax.axis('off')
+        ax.set_title("Image")
+    fig.tight_layout()
+    plt.show()
+def visualize_enc_atten_weights(im,img, conv_features,enc_attn_weights):
+    # output of the CNN
+    f_map = conv_features['0']
+    print("Encoder attention:      ", enc_attn_weights[0].shape)
+    print("Feature map:            ", f_map.tensors.shape)
+    # get the HxW shape of the feature maps of the CNN
+    shape = f_map.tensors.shape[-2:]
+    # and reshape the self-attention to a more interpretable shape
+    sattn = enc_attn_weights[0].reshape(shape + shape)
+    print("Reshaped self-attention:", sattn.shape)
+    # downsampling factor for the CNN, is 32 for DETR and 16 for DETR DC5
+    fact = 32
+
+    # let's select 4 reference points for visualization
+    idxs = [(200, 200), (280, 400), (200, 500), (440, 500),]
+
+    # here we create the canvas
+    fig = plt.figure(constrained_layout=True, figsize=(25 * 0.7, 8.5 * 0.7))
+    # and we add one plot per reference point
+    gs = fig.add_gridspec(2, 4)
+    axs = [
+        fig.add_subplot(gs[0, 0]),
+        fig.add_subplot(gs[1, 0]),
+        fig.add_subplot(gs[0, -1]),
+        fig.add_subplot(gs[1, -1]),
+    ]
+
+    # for each one of the reference points, let's plot the self-attention
+    # for that point
+    for idx_o, ax in zip(idxs, axs):
+        idx = (idx_o[0] // fact, idx_o[1] // fact)
+        print(idx)
+        ax.imshow(sattn[..., idx[0], idx[1]], cmap='cividis', interpolation='nearest')
+        ax.axis('off')
+        ax.set_title(f'self-attention{idx_o}')
+
+    # and now let's add the central image, with the reference points as red circles
+    fcenter_ax = fig.add_subplot(gs[:, 1:-1])
+    fcenter_ax.imshow(im)
+    for (y, x) in idxs:
+        scale = im.height / img.shape[-2]
+        x = ((x // fact) + 0.5) * fact
+        y = ((y // fact) + 0.5) * fact
+        fcenter_ax.add_patch(plt.Circle((x * scale, y * scale), fact // 2, color='r'))
+        fcenter_ax.axis('off')
+    plt.show()
 if __name__ == '__main__':
-    test_MDS_plot()
+    parser = argparse.ArgumentParser('Deformable DETR training and evaluation script', parents=[get_args_parser()])
+    args = parser.parse_args()
+
+    dirname=os.path.dirname
+    model, criterion, postprocessors = build_model(args)
+    checkpoint = torch.load(os.path.join("./checkpoints","checkpoint0034.pth"), map_location='cpu')
+    model.detr.load_state_dict(checkpoint['model'])
+    model.eval()
+    url = 'http://images.cocodataset.org/val2017/000000039769.jpg'
+    im = Image.open(requests.get(url, stream=True).raw)
+    transform1= T.Compose([
+        T.ToTensor(),
+        T.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
+    ])
+    img = transform1(im).unsqueeze(0)
+    outputs = model(img)
+    print(outputs)
+    conv_features, enc_attn_weights,dec_attn_weights=get_image_attention_output(im,img,model)
+    #print(dec_attn_weights.shape)
+    query_num=5
+    visualize_dec_atten_weights(im,img, conv_features, dec_attn_weights, query_num)
+    visualize_enc_atten_weights(im,img, conv_features,enc_attn_weights)
