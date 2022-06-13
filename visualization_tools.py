@@ -1,5 +1,5 @@
 import argparse
-
+import util.misc as utils
 import numpy as np
 import torch
 from sklearn.manifold import MDS, TSNE
@@ -11,6 +11,9 @@ import sys
 #sys.path.insert(0, os.path.abspath(".."))
 from PIL import Image
 import requests
+import random
+import time
+from pathlib import Path
 import matplotlib.pyplot as plt
 from IPython.display import display, clear_output
 from main import get_args_parser
@@ -243,9 +246,26 @@ def visualize_enc_atten_weights(im,img, conv_features,enc_attn_weights):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser('Deformable DETR training and evaluation script', parents=[get_args_parser()])
     args = parser.parse_args()
+    if args.output_dir:
+        Path(args.output_dir).mkdir(parents=True, exist_ok=True)
+    utils.init_distributed_mode(args)
+    print("git:\n  {}\n".format(utils.get_sha()))
 
-    dirname=os.path.dirname
+    if args.frozen_weights is not None:
+        assert args.masks, "Frozen training is meant for segmentation only"
+    print(args)
+
+    device = torch.device(args.device)
+
+    # fix the seed for reproducibility
+    seed = args.seed + utils.get_rank()
+    torch.manual_seed(seed)
+    np.random.seed(seed)
+    random.seed(seed)
+
     model, criterion, postprocessors = build_model(args)
+    dirname=os.path.dirname
+
     checkpoint = torch.load(os.path.join("./checkpoints","checkpoint0034.pth"), map_location='cpu')
     model.detr.load_state_dict(checkpoint['model'])
     model.eval()
