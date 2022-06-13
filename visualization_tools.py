@@ -286,7 +286,9 @@ if __name__ == '__main__':
         T.ToTensor(),
         T.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
     ])
-    img,_ = transform1(im.convert('RGB'), target=None,num_frames=1)
+    im_list=[]
+    im_list.append(im.convert('RGB'))
+    img,_ = transform1(im_list, target=None,num_frames=1)
     img=img.unsqueeze(0)
     print(img.shape)
     abc=torch.Tensor([1,2,3]).cuda()
