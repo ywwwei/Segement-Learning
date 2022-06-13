@@ -255,7 +255,7 @@ if __name__ == '__main__':
         Path(args.output_dir).mkdir(parents=True, exist_ok=True)
     #utils.init_distributed_mode(args)
     #print("git:\n  {}\n".format(utils.get_sha()))
-
+    #device = torch.device(args.device)
     if args.frozen_weights is not None:
         assert args.masks, "Frozen training is meant for segmentation only"
     print(args)
@@ -269,6 +269,7 @@ if __name__ == '__main__':
     random.seed(seed)
 
     model, criterion= build_model(args)
+    model.to(device)
     dirname=os.path.dirname
     #model_without_ddp = model
     checkpoint = torch.load(os.path.join("./checkpoints","checkpoint0034.pth"), map_location='cpu')
