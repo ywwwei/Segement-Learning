@@ -279,9 +279,9 @@ if __name__ == '__main__':
     image_position=os.path.join("./datasets","test","JPEGImages",vid_name,pic_name+".jpg")
     im = Image.open(image_position)
     transform1= T.Compose([
+        T.Resize(640),
         T.ToTensor(),
-        T.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225]),
-        T.Resize(640)
+        T.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
     ])
     img = transform1(im).unsqueeze(0)
     print(img.shape)
