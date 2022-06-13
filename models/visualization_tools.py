@@ -247,8 +247,8 @@ if __name__ == '__main__':
     checkpoint = torch.load(os.path.join("./checkpoints","checkpoint0034.pth"), map_location='cpu')
     model.detr.load_state_dict(checkpoint['model'])
     model.eval()
-    url = 'http://images.cocodataset.org/val2017/000000039769.jpg'
-    im = Image.open(requests.get(url, stream=True).raw)
+    image_position=os.path.join("./datasets","test","JPEGImages","0b102e6d83","00153.jpg")
+    im = Image.open(image_position)
     transform1= T.Compose([
         T.ToTensor(),
         T.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
