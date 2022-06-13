@@ -20,7 +20,7 @@ from main import get_args_parser
 import torch
 from torch import nn
 from torchvision.models import resnet50
-import torchvision.transforms as T
+import datasets.transform_clip as T
 from models import build_model
 torch.set_grad_enabled(False);
 def mscatter(x,y,ax=None, m=None, **kw):
@@ -281,7 +281,7 @@ if __name__ == '__main__':
     transform1= T.Compose([
         T.ToTensor(),
         T.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225]),
-        T.Resize([360], max_size=640)
+        T.RandomResize([360], max_size=640)
     ])
     img = transform1(im).unsqueeze(0)
     print(img.shape)
