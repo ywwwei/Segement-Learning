@@ -263,7 +263,7 @@ if __name__ == '__main__':
     np.random.seed(seed)
     random.seed(seed)
 
-    model, criterion, postprocessors = build_model(args)
+    model, criterion= build_model(args)
     dirname=os.path.dirname
 
     checkpoint = torch.load(os.path.join("./checkpoints","checkpoint0034.pth"), map_location='cpu')
