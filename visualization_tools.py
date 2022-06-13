@@ -169,11 +169,11 @@ def get_image_attention_output(im,img,model):
     ]
 
     # propagate through the model
-    img=img.cuda()
-    model.cuda()
+    #img=img.cuda()
+    #model.cuda()
     outputs = model(img)
-    img=img.cpu()
-    model.cpu()
+    #img=img.cpu()
+    #model.cpu()
     print(outputs)
 
     for hook in hooks:
@@ -286,12 +286,12 @@ if __name__ == '__main__':
     img = transform1(im).unsqueeze(0)
     print(img.shape)
 
-    img=img.cuda()
+    #img=img.cuda()
     print("sucess")
-    model.cuda()
+    #model.cuda()
     outputs = model(img)
-    img=img.cpu()
-    model.cpu()
+    #img=img.cpu()
+    #model.cpu()
     print(outputs)
     conv_features, enc_attn_weights,dec_attn_weights=get_image_attention_output(im,img,model)
     #print(dec_attn_weights.shape)
