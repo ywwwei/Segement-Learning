@@ -9,11 +9,15 @@
 
 import torch.utils.data
 from .torchvision_datasets import CocoDetection
+from .ytvos_label import YTVOSDataset
 
 from .coco import build as build_coco
+from .ytvos_label import build as build_ytvs
 
 
 def get_coco_api_from_dataset(dataset):
+    if isinstance(dataset, YTVOSDataset):
+        return dataset.ytvos
     for _ in range(10):
         # if isinstance(dataset, torchvision.datasets.CocoDetection):
         #     break
@@ -30,4 +34,6 @@ def build_dataset(image_set, args):
         # to avoid making panopticapi required for coco
         from .coco_panoptic import build as build_coco_panoptic
         return build_coco_panoptic(image_set, args)
+    if args.dataset_file == 'YoutubeVIS':
+        return build_ytvs(image_set, args)
     raise ValueError(f'dataset {args.dataset_file} not supported')

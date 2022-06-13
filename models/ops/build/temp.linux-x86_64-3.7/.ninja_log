@@ -1,0 +1,4 @@
+# ninja log v5
+0	4325	1654969668825920626	/media/workspace/weiyibing/project/Segment-Learning/models/ops/build/temp.linux-x86_64-3.7/media/workspace/weiyibing/project/Segment-Learning/models/ops/src/cpu/ms_deform_attn_cpu.o	9f86f9e98f7d770f
+1	13454	1654969677945926897	/media/workspace/weiyibing/project/Segment-Learning/models/ops/build/temp.linux-x86_64-3.7/media/workspace/weiyibing/project/Segment-Learning/models/ops/src/cuda/ms_deform_attn_cuda.o	dc46244f7737fa4d
+1	14988	1654969679481927955	/media/workspace/weiyibing/project/Segment-Learning/models/ops/build/temp.linux-x86_64-3.7/media/workspace/weiyibing/project/Segment-Learning/models/ops/src/vision.o	41041ef1434c6682

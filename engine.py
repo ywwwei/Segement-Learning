@@ -20,11 +20,12 @@ import util.misc as utils
 from datasets.coco_eval import CocoEvaluator
 from datasets.panoptic_eval import PanopticEvaluator
 from datasets.data_prefetcher import data_prefetcher
+import wandb
 
 
 def train_one_epoch(model: torch.nn.Module, criterion: torch.nn.Module,
                     data_loader: Iterable, optimizer: torch.optim.Optimizer,
-                    device: torch.device, epoch: int, max_norm: float = 0):
+                    device: torch.device, epoch: int, max_norm: float = 0, wandb_log=True):
     model.train()
     criterion.train()
     metric_logger = utils.MetricLogger(delimiter="  ")
@@ -38,7 +39,7 @@ def train_one_epoch(model: torch.nn.Module, criterion: torch.nn.Module,
     samples, targets = prefetcher.next()
 
     # for samples, targets in metric_logger.log_every(data_loader, print_freq, header):
-    for _ in metric_logger.log_every(range(len(data_loader)), print_freq, header):
+    for b, _ in enumerate(metric_logger.log_every(range(len(data_loader)), print_freq, header)):
         outputs = model(samples)
         loss_dict = criterion(outputs, targets)
         weight_dict = criterion.weight_dict
@@ -71,6 +72,11 @@ def train_one_epoch(model: torch.nn.Module, criterion: torch.nn.Module,
         metric_logger.update(class_error=loss_dict_reduced['class_error'])
         metric_logger.update(lr=optimizer.param_groups[0]["lr"])
         metric_logger.update(grad_norm=grad_total_norm)
+
+        if wandb_log and ('LOCAL_RANK' not in os.environ or int(os.environ['LOCAL_RANK']) == 0):
+            step = len(data_loader)*epoch+b
+            wandb.log({"train/loss_value":loss_value}, commit=False)
+            wandb.log({'epoch':epoch},step=step)
 
         samples, targets = prefetcher.next()
     # gather the stats from all processes
