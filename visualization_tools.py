@@ -270,7 +270,7 @@ if __name__ == '__main__':
     missing_keys, unexpected_keys = model.load_state_dict(checkpoint["model"], strict=False)
     model.eval()
     vid_name="0b102e6d83"
-    pic_name="00153"
+    pic_name="00135"
     image_position=os.path.join("./datasets","test","JPEGImages",vid_name,pic_name+".jpg")
     im = Image.open(image_position)
     transform1= T.Compose([
