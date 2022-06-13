@@ -1,5 +1,5 @@
 import argparse
-from models import build_model
+
 import numpy as np
 import torch
 from sklearn.manifold import MDS, TSNE
@@ -7,7 +7,8 @@ import matplotlib.pyplot as plt
 from scipy.spatial.distance import squareform, pdist
 import os
 import math
-
+import sys
+sys.path.insert(0, os.path.abspath(".."))
 from PIL import Image
 import requests
 import matplotlib.pyplot as plt
@@ -17,6 +18,7 @@ import torch
 from torch import nn
 from torchvision.models import resnet50
 import torchvision.transforms as T
+from models import build_model
 torch.set_grad_enabled(False);
 def mscatter(x,y,ax=None, m=None, **kw):
     import matplotlib.markers as mmarkers
