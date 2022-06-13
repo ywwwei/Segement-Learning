@@ -12,7 +12,7 @@ Deformable DETR model and criterion classes.
 """
 import torch
 import torch.nn.functional as F
-from torch import nn
+from torch import nn, optim
 import math
 
 from util import box_ops
@@ -51,8 +51,8 @@ class DeformableDETR(nn.Module):
         self.num_queries = num_queries
         self.transformer = transformer
         hidden_dim = transformer.d_model
-        self.class_embed = nn.Linear(hidden_dim, num_classes)
-        self.bbox_embed = MLP(hidden_dim, hidden_dim, 4, 3)
+        # self.class_embed = nn.Linear(hidden_dim, num_classes)
+        # self.bbox_embed = MLP(hidden_dim, hidden_dim, 4, 3)
         self.num_feature_levels = num_feature_levels
         if not two_stage:
             self.query_embed = nn.Embedding(num_queries, hidden_dim*2)
@@ -83,39 +83,38 @@ class DeformableDETR(nn.Module):
         self.with_box_refine = with_box_refine
         self.two_stage = two_stage
 
-        prior_prob = 0.01
-        bias_value = -math.log((1 - prior_prob) / prior_prob)
-        self.class_embed.bias.data = torch.ones(num_classes) * bias_value
-        nn.init.constant_(self.bbox_embed.layers[-1].weight.data, 0)
-        nn.init.constant_(self.bbox_embed.layers[-1].bias.data, 0)
+        # prior_prob = 0.01
+        # bias_value = -math.log((1 - prior_prob) / prior_prob)
+        # self.class_embed.bias.data = torch.ones(num_classes) * bias_value
+        # nn.init.constant_(self.bbox_embed.layers[-1].weight.data, 0)
+        # nn.init.constant_(self.bbox_embed.layers[-1].bias.data, 0) # initialize the box and class embed
         for proj in self.input_proj:
             nn.init.xavier_uniform_(proj[0].weight, gain=1)
             nn.init.constant_(proj[0].bias, 0)
 
-        # if two-stage, the last class_embed and bbox_embed is for region proposal generation
-        num_pred = (transformer.decoder.num_layers + 1) if two_stage else transformer.decoder.num_layers
-        if with_box_refine:
-            self.class_embed = _get_clones(self.class_embed, num_pred)
-            self.bbox_embed = _get_clones(self.bbox_embed, num_pred)
-            nn.init.constant_(self.bbox_embed[0].layers[-1].bias.data[2:], -2.0)
-            # hack implementation for iterative bounding box refinement
-            self.transformer.decoder.bbox_embed = self.bbox_embed
-        else:
-            nn.init.constant_(self.bbox_embed.layers[-1].bias.data[2:], -2.0)
-            self.class_embed = nn.ModuleList([self.class_embed for _ in range(num_pred)])
-            self.bbox_embed = nn.ModuleList([self.bbox_embed for _ in range(num_pred)])
-            self.transformer.decoder.bbox_embed = None
-        if two_stage:
-            # hack implementation for two-stage
-            self.transformer.decoder.class_embed = self.class_embed
-            for box_embed in self.bbox_embed:
-                nn.init.constant_(box_embed.layers[-1].bias.data[2:], 0.0)
+        # # if two-stage, the last class_embed and bbox_embed is for region proposal generation
+        # num_pred = (transformer.decoder.num_layers + 1) if two_stage else transformer.decoder.num_layers
+        # if with_box_refine:
+        #     self.class_embed = _get_clones(self.class_embed, num_pred)
+        #     self.bbox_embed = _get_clones(self.bbox_embed, num_pred)
+        #     nn.init.constant_(self.bbox_embed[0].layers[-1].bias.data[2:], -2.0)
+        #     # hack implementation for iterative bounding box refinement
+        #     self.transformer.decoder.bbox_embed = self.bbox_embed
+        # else:
+        #     nn.init.constant_(self.bbox_embed.layers[-1].bias.data[2:], -2.0)
+        #     self.class_embed = nn.ModuleList([self.class_embed for _ in range(num_pred)])
+        #     self.bbox_embed = nn.ModuleList([self.bbox_embed for _ in range(num_pred)])
+        #     self.transformer.decoder.bbox_embed = None
+        # if two_stage:
+        #     # hack implementation for two-stage
+        #     self.transformer.decoder.class_embed = self.class_embed
+        #     for box_embed in self.bbox_embed:
+        #         nn.init.constant_(box_embed.layers[-1].bias.data[2:], 0.0)
 
     def forward(self, samples: NestedTensor):
-        """ The forward expects a NestedTensor, which consists of:
+        """ The forward expects a NestedTensor, which consists of:
                - samples.tensor: batched images, of shape [batch_size x 3 x H x W]
                - samples.mask: a binary mask of shape [batch_size x H x W], containing 1 on padded pixels
-
             It returns a dict with the following elements:
                - "pred_logits": the classification logits (including no-object) for all queries.
                                 Shape= [batch_size x num_queries x (num_classes + 1)]
@@ -156,35 +155,35 @@ class DeformableDETR(nn.Module):
             query_embeds = self.query_embed.weight
         hs, init_reference, inter_references, enc_outputs_class, enc_outputs_coord_unact = self.transformer(srcs, masks, pos, query_embeds)
 
-        outputs_classes = []
-        outputs_coords = []
-        for lvl in range(hs.shape[0]):
-            if lvl == 0:
-                reference = init_reference
-            else:
-                reference = inter_references[lvl - 1]
-            reference = inverse_sigmoid(reference)
-            outputs_class = self.class_embed[lvl](hs[lvl])
-            tmp = self.bbox_embed[lvl](hs[lvl])
-            if reference.shape[-1] == 4:
-                tmp += reference
-            else:
-                assert reference.shape[-1] == 2
-                tmp[..., :2] += reference
-            outputs_coord = tmp.sigmoid()
-            outputs_classes.append(outputs_class)
-            outputs_coords.append(outputs_coord)
-        outputs_class = torch.stack(outputs_classes)
-        outputs_coord = torch.stack(outputs_coords)
+        # outputs_classes = []
+        # outputs_coords = []
+        # for lvl in range(hs.shape[0]):
+        #     if lvl == 0:
+        #         reference = init_reference
+        #     else:
+        #         reference = inter_references[lvl - 1]
+        #     reference = inverse_sigmoid(reference)
+        #     outputs_class = self.class_embed[lvl](hs[lvl])
+        #     tmp = self.bbox_embed[lvl](hs[lvl])
+        #     if reference.shape[-1] == 4:
+        #         tmp += reference
+        #     else:
+        #         assert reference.shape[-1] == 2
+        #         tmp[..., :2] += reference
+        #     outputs_coord = tmp.sigmoid()
+        #     outputs_classes.append(outputs_class)
+        #     outputs_coords.append(outputs_coord)
+        # outputs_class = torch.stack(outputs_classes)
+        # outputs_coord = torch.stack(outputs_coords)
 
-        out = {'pred_logits': outputs_class[-1], 'pred_boxes': outputs_coord[-1]}
-        if self.aux_loss:
-            out['aux_outputs'] = self._set_aux_loss(outputs_class, outputs_coord)
+        # out = {'pred_logits': outputs_class[-1], 'pred_boxes': outputs_coord[-1]}
+        # if self.aux_loss:
+        #     out['aux_outputs'] = self._set_aux_loss(outputs_class, outputs_coord)
 
-        if self.two_stage:
-            enc_outputs_coord = enc_outputs_coord_unact.sigmoid()
-            out['enc_outputs'] = {'pred_logits': enc_outputs_class, 'pred_boxes': enc_outputs_coord}
-        return out
+        # if self.two_stage:
+        #     enc_outputs_coord = enc_outputs_coord_unact.sigmoid()
+        #     out['enc_outputs'] = {'pred_logits': enc_outputs_class, 'pred_boxes': enc_outputs_coord}
+        return hs[-1]
 
     @torch.jit.unused
     def _set_aux_loss(self, outputs_class, outputs_coord):
@@ -194,6 +193,50 @@ class DeformableDETR(nn.Module):
         return [{'pred_logits': a, 'pred_boxes': b}
                 for a, b in zip(outputs_class[:-1], outputs_coord[:-1])]
 
+# Contrastive Loss
+def off_diagonal(x):
+    # return a flattened view of the off-diagonal elements of a batch of square matrix
+    # input x: B * n * m
+    B, n, m = x.shape
+    assert n == m
+    return x.view(B, -1)[:, :-1].view(B, n - 1, n + 1)[:, :, 1:].flatten()
+
+class ContrastiveCriterion(nn.Module):
+    """ This class computes the contrastive loss.
+    """
+    def __init__(self, lambd):
+        """ Create the criterion.
+        Parameters:
+            lambd: hyper-parameter trading off the importance of invariance term and redundance term in the loss.
+        """
+        super().__init__()
+        self.lambd = lambd
+
+    def forward(self, outputs):
+        """This performs the loss computation.
+        Parameters:
+            outputs: tensors of dimension (B, 2, N, d).
+                B: batch size.
+                2: one pair of images.
+                N: number of queries for each image.
+                d: dimension of query output.
+        """
+        # gather features for two images and normalize
+        norm_out = outputs.pow(2).sum(keepdim = True, dim=3).sqrt()
+        outputs = outputs / norm_out
+        z1 = outputs[:,0]
+        z2 = outputs[:,1]
+
+        # compute similarity matrix
+        c = torch.matmul(z1, torch.transpose(z2, dim0=1, dim1=2))
+
+        # sum the cross-correlation matrix between all gpus
+        c.div_(outputs.shape[0])
+        # torch.distributed.all_reduce(c)
+        on_diag = torch.diagonal(c, dim1 = 1, dim2 = 2).add_(-1).pow_(2).sum()
+        off_diag = off_diagonal(c).pow_(2).sum()
+        loss = on_diag + self.lambd * off_diag
+        return loss
 
 class SetCriterion(nn.Module):
     """ This class computes the loss for DETR.
@@ -440,11 +483,12 @@ class MLP(nn.Module):
             x = F.relu(layer(x)) if i < self.num_layers - 1 else layer(x)
         return x
 
-
 def build(args):
     num_classes = 20 if args.dataset_file != 'coco' else 91
     if args.dataset_file == "coco_panoptic":
         num_classes = 250
+    elif args.dataset_file == 'YoutubeVIS':
+        num_classes = 42
     device = torch.device(args.device)
 
     backbone = build_backbone(args)
@@ -460,33 +504,33 @@ def build(args):
         with_box_refine=args.with_box_refine,
         two_stage=args.two_stage,
     )
-    if args.masks:
-        model = DETRsegm(model, freeze_detr=(args.frozen_weights is not None))
-    matcher = build_matcher(args)
-    weight_dict = {'loss_ce': args.cls_loss_coef, 'loss_bbox': args.bbox_loss_coef}
-    weight_dict['loss_giou'] = args.giou_loss_coef
-    if args.masks:
-        weight_dict["loss_mask"] = args.mask_loss_coef
-        weight_dict["loss_dice"] = args.dice_loss_coef
-    # TODO this is a hack
-    if args.aux_loss:
-        aux_weight_dict = {}
-        for i in range(args.dec_layers - 1):
-            aux_weight_dict.update({k + f'_{i}': v for k, v in weight_dict.items()})
-        aux_weight_dict.update({k + f'_enc': v for k, v in weight_dict.items()})
-        weight_dict.update(aux_weight_dict)
+    # if args.masks:
+    #     model = DETRsegm(model, freeze_detr=(args.frozen_weights is not None))
+    # matcher = build_matcher(args)
+    # weight_dict = {'loss_ce': args.cls_loss_coef, 'loss_bbox': args.bbox_loss_coef}
+    # weight_dict['loss_giou'] = args.giou_loss_coef
+    # if args.masks:
+    #     weight_dict["loss_mask"] = args.mask_loss_coef
+    #     weight_dict["loss_dice"] = args.dice_loss_coef
+    # # TODO this is a hack
+    # if args.aux_loss:
+    #     aux_weight_dict = {}
+    #     for i in range(args.dec_layers - 1):
+    #         aux_weight_dict.update({k + f'_{i}': v for k, v in weight_dict.items()})
+    #     aux_weight_dict.update({k + f'_enc': v for k, v in weight_dict.items()})
+    #     weight_dict.update(aux_weight_dict)
 
-    losses = ['labels', 'boxes', 'cardinality']
-    if args.masks:
-        losses += ["masks"]
+    # losses = ['labels', 'boxes', 'cardinality']
+    # if args.masks:
+    #     losses += ["masks"]
     # num_classes, matcher, weight_dict, losses, focal_alpha=0.25
-    criterion = SetCriterion(num_classes, matcher, weight_dict, losses, focal_alpha=args.focal_alpha)
+    criterion = ContrastiveCriterion(args.lambd)
     criterion.to(device)
-    postprocessors = {'bbox': PostProcess()}
-    if args.masks:
-        postprocessors['segm'] = PostProcessSegm()
-        if args.dataset_file == "coco_panoptic":
-            is_thing_map = {i: i <= 90 for i in range(201)}
-            postprocessors["panoptic"] = PostProcessPanoptic(is_thing_map, threshold=0.85)
+    # postprocessors = {'bbox': PostProcess()}
+    # if args.masks:
+    #     postprocessors['segm'] = PostProcessSegm()
+    #     if args.dataset_file == "coco_panoptic":
+    #         is_thing_map = {i: i <= 90 for i in range(201)}
+    #         postprocessors["panoptic"] = PostProcessPanoptic(is_thing_map, threshold=0.85)
 
-    return model, criterion, postprocessors
+    return model, criterion#, postprocessors
