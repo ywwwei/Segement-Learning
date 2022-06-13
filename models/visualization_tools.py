@@ -8,7 +8,7 @@ from scipy.spatial.distance import squareform, pdist
 import os
 import math
 import sys
-sys.path.insert(0, os.path.abspath(".."))
+#sys.path.insert(0, os.path.abspath(".."))
 from PIL import Image
 import requests
 import matplotlib.pyplot as plt
