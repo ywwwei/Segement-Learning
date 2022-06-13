@@ -288,8 +288,9 @@ if __name__ == '__main__':
     ])
     im_list=[]
     im_list.append(im.convert('RGB'))
-    img,_ = transform1(im_list, target=None,num_frames=1)
-    img=img.unsqueeze(0)
+    img_list,_ = transform1(im_list, target=None,num_frames=1)
+    img=torch.cat(img_list,dim=0)
+    #img=img.unsqueeze(0)
     print(img.shape)
     abc=torch.Tensor([1,2,3]).cuda()
     print(abc)
