@@ -158,18 +158,23 @@ def get_image_attention_output(im,img,model):
 
     hooks = [
         model.backbone[-2].register_forward_hook(
-            lambda self, input, output: conv_features.append(output)
+            lambda self, input, output: conv_features.append(output.to('cpu'))
         ),
         model.transformer.encoder.layers[-1].self_attn.register_forward_hook(
-            lambda self, input, output: enc_attn_weights.append(output[1])
+            lambda self, input, output: enc_attn_weights.append(output[1].to('cpu'))
         ),
         model.transformer.decoder.layers[-1].multihead_attn.register_forward_hook(
-            lambda self, input, output: dec_attn_weights.append(output[1])
+            lambda self, input, output: dec_attn_weights.append(output[1].to('cpu'))
         ),
     ]
 
     # propagate through the model
+    img=img.to('cuda')
+    model.cuda()
     outputs = model(img)
+    img=img.to('cpu')
+    model.cpu()
+    print(outputs)
 
     for hook in hooks:
         hook.remove()
@@ -278,7 +283,11 @@ if __name__ == '__main__':
         T.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
     ])
     img = transform1(im).unsqueeze(0)
+    img=img.to('cuda')
+    model.cuda()
     outputs = model(img)
+    img=img.to('cpu')
+    model.cpu()
     print(outputs)
     conv_features, enc_attn_weights,dec_attn_weights=get_image_attention_output(im,img,model)
     #print(dec_attn_weights.shape)
