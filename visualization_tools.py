@@ -265,9 +265,9 @@ if __name__ == '__main__':
 
     model, criterion= build_model(args)
     dirname=os.path.dirname
-
+    #model_without_ddp = model
     checkpoint = torch.load(os.path.join("./checkpoints","checkpoint0034.pth"), map_location='cpu')
-    model.detr.load_state_dict(checkpoint['model'])
+    missing_keys, unexpected_keys = model.load_state_dict(checkpoint["model"], strict=False)
     model.eval()
     vid_name="0b102e6d83"
     pic_name="00153"
