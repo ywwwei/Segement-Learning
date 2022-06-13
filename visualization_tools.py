@@ -179,7 +179,7 @@ def get_image_attention_output(im,img,model):
     enc_attn_weights = enc_attn_weights[0]
     dec_attn_weights = dec_attn_weights[0]
     return  conv_features, enc_attn_weights,dec_attn_weights
-def visualize_dec_atten_weights(im,img, conv_features, dec_attn_weights, query_num):
+def visualize_dec_atten_weights(im,img, conv_features, dec_attn_weights, query_num,vid_name,pic_name):
     # get the feature map shape
     h, w = conv_features['0'].tensors.shape[-2:]
     COLORS = [[0.000, 0.447, 0.741], [0.850, 0.325, 0.098], [0.929, 0.694, 0.125],
@@ -196,8 +196,8 @@ def visualize_dec_atten_weights(im,img, conv_features, dec_attn_weights, query_n
         ax.axis('off')
         ax.set_title("Image")
     fig.tight_layout()
-    plt.show()
-def visualize_enc_atten_weights(im,img, conv_features,enc_attn_weights):
+    plt.savefig(os.path.join("figs", "dec_plot"+vid_name+"_"+pic_name+".png"))
+def visualize_enc_atten_weights(im,img, conv_features,enc_attn_weights,vid_name,pic_name):
     # output of the CNN
     f_map = conv_features['0']
     print("Encoder attention:      ", enc_attn_weights[0].shape)
@@ -242,7 +242,7 @@ def visualize_enc_atten_weights(im,img, conv_features,enc_attn_weights):
         y = ((y // fact) + 0.5) * fact
         fcenter_ax.add_patch(plt.Circle((x * scale, y * scale), fact // 2, color='r'))
         fcenter_ax.axis('off')
-    plt.show()
+    plt.savefig(os.path.join("figs", "dec_plot"+vid_name+"_"+pic_name+".png"))
 if __name__ == '__main__':
     parser = argparse.ArgumentParser('Deformable DETR training and evaluation script', parents=[get_args_parser()])
     args = parser.parse_args()
@@ -269,7 +269,9 @@ if __name__ == '__main__':
     checkpoint = torch.load(os.path.join("./checkpoints","checkpoint0034.pth"), map_location='cpu')
     model.detr.load_state_dict(checkpoint['model'])
     model.eval()
-    image_position=os.path.join("./datasets","test","JPEGImages","0b102e6d83","00153.jpg")
+    vid_name="0b102e6d83"
+    pic_name="00153"
+    image_position=os.path.join("./datasets","test","JPEGImages",vid_name,pic_name+".jpg")
     im = Image.open(image_position)
     transform1= T.Compose([
         T.ToTensor(),
@@ -281,5 +283,5 @@ if __name__ == '__main__':
     conv_features, enc_attn_weights,dec_attn_weights=get_image_attention_output(im,img,model)
     #print(dec_attn_weights.shape)
     query_num=5
-    visualize_dec_atten_weights(im,img, conv_features, dec_attn_weights, query_num)
-    visualize_enc_atten_weights(im,img, conv_features,enc_attn_weights)
+    visualize_dec_atten_weights(im,img, conv_features, dec_attn_weights, query_num,vid_name,pic_name)
+    visualize_enc_atten_weights(im,img, conv_features,enc_attn_weights,vid_name,pic_name)
