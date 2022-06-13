@@ -10,6 +10,7 @@ import math
 import sys
 #sys.path.insert(0, os.path.abspath(".."))
 from PIL import Image
+from datasets import ytvos_unlabel
 import requests
 import random
 import time
@@ -21,6 +22,7 @@ import torch
 from torch import nn
 from torchvision.models import resnet50
 import datasets.transform_clip as T
+
 from models import build_model
 torch.set_grad_enabled(False);
 def mscatter(x,y,ax=None, m=None, **kw):
@@ -284,7 +286,8 @@ if __name__ == '__main__':
         T.ToTensor(),
         T.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
     ])
-    img = transform1(im).unsqueeze(0)
+    img,_ = transform1(im, target=None,num_frames=1)
+    img=img.unsqueeze(0)
     print(img.shape)
     abc=torch.Tensor([1,2,3]).cuda()
     print(abc)
