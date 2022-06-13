@@ -280,10 +280,13 @@ if __name__ == '__main__':
     im = Image.open(image_position)
     transform1= T.Compose([
         T.ToTensor(),
-        T.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
+        T.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225]),
+        T.Resize([360], max_size=640)
     ])
     img = transform1(im).unsqueeze(0)
+    print(img)
     img=img.to('cuda')
+    print("sucess")
     model.cuda()
     outputs = model(img)
     img=img.to('cpu')
