@@ -284,7 +284,7 @@ if __name__ == '__main__':
         T.Resize([360], max_size=640)
     ])
     img = transform1(im).unsqueeze(0)
-    print(img)
+    print(img.shape)
     img=img.to('cuda')
     print("sucess")
     model.cuda()
